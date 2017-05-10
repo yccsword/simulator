@@ -341,7 +341,7 @@ CWBool CWAssembleConfigureResponse(CWProtocolMessage **messagesPtr,
 	if ((!(CWAssembleMsgElemACIPv4List(&(msgElems[++k])))) ||
 	    (!(CWAssembleMsgElemACIPv6List(&(msgElems[++k])))) ||
 	    (!(CWAssembleMsgElemCWTimer(&(msgElems[++k])))) ||
-	    /*(!(CWAssembleMsgElemRadioOperationalState(-1, &(msgElems[++k])))) ||*/
+	    /*(!(CWAssembleMsgElemRadioOperationalState(-1, &(msgElems[++k]), NULL))) ||*/
 	    (!(CWAssembleMsgElemDecryptErrorReportPeriod(&(msgElems[++k])))) ||
 	    (!(CWAssembleMsgElemIdleTimeout(&(msgElems[++k])))) ||
 	    (!(CWAssembleMsgElemWTPFallback(&(msgElems[++k]))))
@@ -373,9 +373,9 @@ CWBool CWAssembleConfigureResponse(CWProtocolMessage **messagesPtr,
 			       msgElemsBinding,
 			       msgElemBindingCount,
 #ifdef CW_NO_DTLS
-			       CW_PACKET_PLAIN))) {
+			       CW_PACKET_PLAIN,NULL))) {
 #else
-			       CW_PACKET_CRYPT))) {
+			       CW_PACKET_CRYPT,NULL))) {
 #endif
 		return CW_FALSE;
 	}

@@ -87,7 +87,7 @@ CWBool CWNetworkSendUnsafeUnconnected(CWSocket sock,
 /*
  * Send buf on a "connected" UDP socket. Unsafe means that we don't use DTLS.
  */
-CWBool CWNetworkSendUnsafeConnected(CWSocket sock, const char *buf, int len) {
+CWBool SimulatorNetworkSendUnsafeConnected(char * func, int line, CWSocket sock, const char *buf, int len) {
 
 	if(buf == NULL) 
 		return CWErrorRaise(CW_ERROR_WRONG_ARG, NULL);
@@ -95,6 +95,23 @@ CWBool CWNetworkSendUnsafeConnected(CWSocket sock, const char *buf, int len) {
 	while(send(sock, buf, len, 0) < 0) {
 	
 		if(errno == EINTR) continue;
+		fprintf(stderr,"%s%s %d sock:%d errno:%d%s\n",COLOR_RED,func,line,sock,errno,COLOR_END);//ycc test
+		CWNetworkRaiseSystemError(CW_ERROR_SENDING);
+	}
+	return CW_TRUE;
+}
+/*
+ * Send buf on a "connected" UDP socket. Unsafe means that we don't use DTLS.
+ */
+CWBool _CWNetworkSendUnsafeConnected(CWSocket sock, const char *buf, int len) {
+
+	if(buf == NULL) 
+		return CWErrorRaise(CW_ERROR_WRONG_ARG, NULL);
+
+	while(send(sock, buf, len, 0) < 0) {
+	
+		if(errno == EINTR) continue;
+		fprintf(stderr,"%s %d errno:%d\n",__func__,__LINE__,errno);//ycc test
 		CWNetworkRaiseSystemError(CW_ERROR_SENDING);
 	}
 	return CW_TRUE;
@@ -307,9 +324,10 @@ CWBool CWNetworkInitSocketClientWithPort(CWSocket *sockPtr, CWNetworkLev4Address
 	/* Elena Agostini - 04/2014 */
 	sockaddr.sin_port = ntohs(portSocket);
 	CWLog("portSocket: %d", portSocket);
+	setsockopt(*sockPtr, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));//ycc fix
 	if (bind(*sockPtr, (const struct sockaddr *)&sockaddr, addrlen) < 0) { 
 		close(*sockPtr);
-		CWDebugLog("failed to bind Client socket in <%s> line:%d.\n", __func__,__LINE__);
+		CWDebugLog("failed to bind Client socket in <%s> line:%d. errno:%d\n", __func__,__LINE__,errno);
 		return CW_FALSE;
 	}
 
@@ -368,6 +386,7 @@ CWBool CWNetworkInitSocketClientDataChannelWithPort(CWSocket *sockPtr, CWNetwork
 
 	/* Elena Agostini - 04/2014 */
 	sockaddr.sin_port = ntohs(portSocket);
+	setsockopt(*sockPtr, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));//ycc fix
 	if (bind(*sockPtr, (const struct sockaddr *)&sockaddr, addrlen) < 0) {
 		close(*sockPtr);
 		CWDebugLog("failed to bind Client socket in <%s> line:%d.\n", __func__,__LINE__);
@@ -432,6 +451,49 @@ CWBool CWNetworkTimedPollRead(CWSocket sock, struct timeval *timeout) {
 		}
 
 	return CW_TRUE;
+}
+/*
+* Wrapper for epoll
+  ycc fix
+ */
+CWErrorCode SimulatorEPollRead(CWSocket sock,int Epoll_fd, int timeout) {
+	int nfds, i;
+	struct epoll_event listen_event[2] = {0};
+
+	if(timeout == 0) return CWErrorRaise(CW_ERROR_WRONG_ARG, NULL);
+
+	while(1)
+	{
+		//fprintf(stderr,"%s %d cur_AP->sock:%d Epoll_fd:%d\n",__func__,__LINE__,sock,Epoll_fd);//ycc test
+		nfds = epoll_wait(Epoll_fd,listen_event,1,timeout);
+		if(nfds < 0)
+		{
+			fprintf(stderr,"ap sock:%d Epoll_fd:%d %s %d %sCW_ERROR_GENERAL%s\n",sock,Epoll_fd,__func__,__LINE__,COLOR_YELLOW,COLOR_END);
+			return CW_ERROR_GENERAL;
+		}
+		else if(nfds == 0)
+		{
+			fprintf(stderr,"ap sock:%d Epoll_fd:%d %s %d %sCW_ERROR_TIME_EXPIRED%s\n",sock,Epoll_fd,__func__,__LINE__,COLOR_YELLOW,COLOR_END);
+			return CW_ERROR_TIME_EXPIRED;
+		}
+		else
+		{
+			for (i = 0; i < nfds; i++)
+			{
+				if(listen_event[i].events & EPOLLIN)
+				{
+					//fprintf(stderr,"%s %d listen_event[i].data.fd:%d cur_AP->sock:%d\n",__func__,__LINE__,listen_event[i].data.fd,sock);//ycc test
+					if(listen_event[i].data.fd == sock)
+					{
+						//fprintf(stderr,"ap sock:%d Epoll_fd:%d %s %d CW_ERROR_SUCCESS\n",sock,Epoll_fd,__func__,__LINE__);
+						return CW_ERROR_SUCCESS;
+					}
+				}
+			}
+			fprintf(stderr,"ap sock:%d Epoll_fd:%d %s %d %scontinue%s\n",sock,Epoll_fd,__func__,__LINE__,COLOR_YELLOW,COLOR_END);
+			continue;
+		}
+	}
 }
 
 /*

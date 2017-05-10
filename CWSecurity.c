@@ -631,6 +631,7 @@ CWBool CWSecurityInitContext(CWSecurityContext *ctxPtr,
 	} else { 
 		/* pre-shared keys */
 		printf("OpenSSL PrivateSharedKey not ready\n");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(0);
 		/*
 		useCertificate = CW_FALSE;

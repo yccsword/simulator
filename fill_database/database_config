@@ -1,0 +1,5 @@
+[Mysql]
+addr=127.0.0.1
+user=root
+pwd=00000
+database=simulator

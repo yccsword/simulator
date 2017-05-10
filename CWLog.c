@@ -54,11 +54,13 @@ void CWLogInitFile(char *fileName) {
 	}
 	if((gLogFile = fopen(fileName, "w")) == NULL) {
 		CWLog("Can't open log file: %s", strerror(errno));
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 	#ifndef CW_SINGLE_THREAD
 		if(!CWCreateThreadMutex(&gFileMutex)) {
 			CWLog("Can't Init File Mutex for Log");
+			fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 			exit(1);
 		}
 	#endif
@@ -125,6 +127,7 @@ __inline__ void CWVLog(const char *format, va_list args) {
 		if(!checkResetFile()) 
 		{
 			CWThreadMutexUnlock(&gFileMutex);
+			fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 			exit (1);
 		}
 		
@@ -193,6 +196,7 @@ __inline__ void CWDebugLog(const char *format, ...) {
 			if(!checkResetFile()) 
 			{
 				CWThreadMutexUnlock(&gFileMutex);
+				fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 				exit (1);
 			}
 

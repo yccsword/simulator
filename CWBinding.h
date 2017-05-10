@@ -45,7 +45,8 @@
 
 #define CW_BINDING_HLEN				4
 #define CW_BINDING_WIRELESSID			1
-#define CW_BINDING_DATALENGTH			4
+//#define CW_BINDING_DATALENGTH			4//ycc fix
+#define CW_BINDING_DATALENGTH			6
 
 #define NUM_QOS_PROFILES			4
 #define UNUSED_QOS_VALUE			255

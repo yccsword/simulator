@@ -1,0 +1,17 @@
+[GolbalSetting]
+ProductCount=5
+[Product0]
+PhyHead=wlan
+BssidHead=00:10:98:
+[Product1]
+PhyHead=eth
+BssidHead=00:10:99:
+[Product2]
+PhyHead=br
+BssidHead=00:10:A0:
+[Product3]
+PhyHead=pppoe
+BssidHead=00:10:A1:
+[Product4]
+PhyHead=lan
+BssidHead=00:10:A2:

@@ -797,6 +797,7 @@ static void eloop_handle_alarm(int sig)
 		   "is a bug that ends up in a busy loop that "
 		   "prevents clean shutdown.\n"
 		   "Killing program forcefully.\n");
+	fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 	exit(1);
 }
 #endif /* CONFIG_NATIVE_WINDOWS */

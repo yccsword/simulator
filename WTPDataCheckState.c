@@ -45,7 +45,8 @@ CWBool CWAssembleChangeStateEventRequest(CWProtocolMessage **messagesPtr,
 					 int *fragmentsNumPtr,
 					 int PMTU,
 					 int seqNum,
-					 CWList msgElemList);
+					 CWList msgElemList,
+					 AP_TABLE * cur_AP);
 
 CWBool CWParseChangeStateEventResponseMessage(char *msg,
 					      int len,
@@ -54,7 +55,7 @@ CWBool CWParseChangeStateEventResponseMessage(char *msg,
 
 CWBool CWSaveChangeStateEventResponseMessage(void *changeStateEventResp);
 
-CWStateTransition CWWTPEnterDataCheck() {
+CWStateTransition CWWTPEnterDataCheck(AP_TABLE * cur_AP) {
 
 	int seqNum;
 	
@@ -72,7 +73,8 @@ CWStateTransition CWWTPEnterDataCheck() {
 					      CWAssembleChangeStateEventRequest,
 					      CWParseChangeStateEventResponseMessage,
 					      CWSaveChangeStateEventResponseMessage,
-					      NULL)))
+					      NULL,
+					      cur_AP)))
 		return CW_ENTER_RESET;
 	
 /*
@@ -183,7 +185,8 @@ CWBool CWAssembleChangeStateEventRequest(CWProtocolMessage **messagesPtr,
 					 int *fragmentsNumPtr,
 					 int PMTU,
 					 int seqNum,
-					 CWList msgElemList) {
+					 CWList msgElemList,
+					 AP_TABLE * cur_AP) {
 
 	CWProtocolMessage 	*msgElems= NULL;
 	CWProtocolMessage 	*msgElemsBinding= NULL;
@@ -202,7 +205,7 @@ CWBool CWAssembleChangeStateEventRequest(CWProtocolMessage **messagesPtr,
 	CWLog("Assembling Change State Event Request...");	
 
 	/* Assemble Message Elements */
-	if (!(CWAssembleMsgElemRadioOperationalState(-1, &(msgElems[++k]))) ||
+	if (!(CWAssembleMsgElemRadioOperationalState(-1, &(msgElems[++k]), cur_AP)) ||
 	    !(CWAssembleMsgElemResultCode(&(msgElems[++k]), resultCode))) {
 
 		int i;
@@ -229,6 +232,7 @@ CWBool CWAssembleChangeStateEventRequest(CWProtocolMessage **messagesPtr,
 #else
 				CW_PACKET_CRYPT
 #endif
+				,NULL
 				)))
 	 	return CW_FALSE;
 	

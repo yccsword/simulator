@@ -50,7 +50,7 @@
 
 #define EXIT_THREAD		CWLog("ERROR Handling Stats: application will be closed!");		\
 				close(sock);								\
-				exit(1);
+				exit(9);
 
 
 //////////////////// copy of ath_clone.h ////////////////////////////////////////////////////////

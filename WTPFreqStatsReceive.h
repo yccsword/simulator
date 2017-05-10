@@ -47,7 +47,7 @@
 
 #define EXIT_THREAD	CWLog("ERROR Handling Frequency Stats: application will be closed!");		\
 				close(recSock);								\
-				exit(1);
+				exit(7);
 
 /* Structs for frequencies' informations */
 

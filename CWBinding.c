@@ -108,7 +108,7 @@ CWBool CWAssembleDataMessage(CWProtocolMessage **completeMsgPtr, int *fragmentsN
 			} 
 		}else{
 			 
-			if(!(CWAssembleTransportHeader(&transportHdr, &transportVal))) {
+			if(!(CWAssembleTransportHeader(&transportHdr, &transportVal, NULL))) {
 				CW_FREE_PROTOCOL_MESSAGE(transportHdr);
 				return CW_FALSE; // will be handled by the caller
 			} 
@@ -174,7 +174,7 @@ CWBool CWAssembleDataMessage(CWProtocolMessage **completeMsgPtr, int *fragmentsN
 					return CW_FALSE; // will be handled by the caller
 				}
 			}else{
-				if(!(CWAssembleTransportHeader(&transportHdr, &transportVal))) {
+				if(!(CWAssembleTransportHeader(&transportHdr, &transportVal, NULL))) {
 					CW_FREE_PROTOCOL_MESSAGE(transportHdr);
 					CW_FREE_OBJECT(completeMsgPtr);
 					return CW_FALSE; // will be handled by the caller

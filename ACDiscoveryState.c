@@ -83,7 +83,7 @@ CWBool CWAssembleDiscoveryResponse(CWProtocolMessage **messagesPtr, int seqNum, 
 	/* Assemble Message Elements */
 	if (
 		(!(CWAssembleMsgElemACDescriptor(&(msgElems[++k])))) ||
-		(!(CWAssembleMsgElemACName(&(msgElems[++k])))) ||
+		(!(CWAssembleMsgElemACName(&(msgElems[++k]), NULL))) ||
 		(!(CWAssembleMsgElemCWControlIPv4Addresses(&(msgElems[++k]))))
 		/*(CWACSupportIPv6() && (!(CWAssembleMsgElemCWControlIPv6Addresses(&(msgElems[++k])))))*/
 	) {
@@ -116,7 +116,8 @@ CWBool CWAssembleDiscoveryResponse(CWProtocolMessage **messagesPtr, int seqNum, 
 				 msgElemCount,
 				 msgElemsBinding,
 				 msgElemBindingCount,
-				 CW_PACKET_PLAIN);
+				 CW_PACKET_PLAIN,
+				 NULL);
 }
 
 CWBool CWParseDiscoveryRequestMessage(char *msg, 

@@ -51,7 +51,7 @@ int gCWSilentInterval = 30;
 /* 
  * WTP enters sulking when no AC is responding to Discovery Request.
  */
-CWStateTransition CWWTPEnterSulking() {
+CWStateTransition CWWTPEnterSulking(AP_TABLE * cur_AP) {
 	struct timeval timeout, before, after, delta, newTimeout;
 	
 	CWLog("\n");
@@ -60,6 +60,8 @@ CWStateTransition CWWTPEnterSulking() {
 	 * wait for Silent Interval and discard 
 	 * all the packets that are coming 
 	 */
+	gCWSilentInterval = 1000;//ycc config//ºÁÃë
+	CWLog("gCWSilentInterval:%dusec",gCWSilentInterval);
 	timeout.tv_sec = newTimeout.tv_sec = gCWSilentInterval;
 	timeout.tv_usec = newTimeout.tv_usec = 0;
 	
@@ -68,16 +70,17 @@ CWStateTransition CWWTPEnterSulking() {
 	CW_REPEAT_FOREVER {
 
 		/* check if something is available to read until newTimeout */
-		if(CWNetworkTimedPollRead(gWTPSocket, &newTimeout)) { 
+		//if(CWNetworkTimedPollRead(cur_AP->WTPSocket, &newTimeout)) { 
 			/*
 			 * success
 			 * if there was no error, raise a "success error", so we can easily handle
 			 * all the cases in the switch
 			 */
-			CWErrorRaise(CW_ERROR_SUCCESS, NULL);
-		}
+			//CWErrorRaise(CW_ERROR_SUCCESS, NULL);
+		//}
 
-		switch(CWErrorGetLastErrorCode()) {
+		//switch(CWErrorGetLastErrorCode()) {
+		switch(SimulatorEPollRead(cur_AP->WTPSocket, Epoll_fd[cur_AP->Epoll_fd_Index], gCWSilentInterval)) {
 			case CW_ERROR_TIME_EXPIRED:
 				goto cw_sulk_time_over;
 				break;
@@ -89,7 +92,7 @@ CWStateTransition CWWTPEnterSulking() {
 					int readBytes;
 		
 					/* read and discard */
-					if(!CWErr(CWNetworkReceiveUnsafe(gWTPSocket, buf, CW_BUFFER_SIZE, 0, &addr, &readBytes))) {
+					if(!CWErr(CWNetworkReceiveUnsafe(cur_AP->WTPSocket, buf, CW_BUFFER_SIZE, 0, &addr, &readBytes))) {
 						return CW_QUIT;
 					}
 				}

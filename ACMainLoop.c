@@ -81,6 +81,7 @@ void CWACSetNewGenericHandshakeDataThread(genericHandshakeThreadPtr * genericThr
 	CW_COPY_NET_ADDR_PTR(&((*genericThreadStruct)->addressWTPPtr), addrPtr);
 					
 	if (!CWErr(CWCreateSafeList(&((*genericThreadStruct)->packetDataList)))) {
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(-1);
 	}
 	
@@ -132,12 +133,14 @@ void CWACEnterMainLoop() {
 
 	if(!(CWThreadCreateSpecific(&gIndexSpecific, NULL))) {
 		CWLog("Critical Error With Thread Data");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 	
 	CWThread thread_interface;
 	if(!CWErr(CWCreateThread(&thread_interface, CWInterface, NULL))) {
 		CWLog("Error starting Interface Thread");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 
@@ -148,7 +151,7 @@ void CWACEnterMainLoop() {
 		if(!CWErr(CWNetworkUnsafeMultiHomed(&gACSocket, 
 						    CWACManageIncomingPacket,
 						    CW_FALSE)))
-			exit(1);
+			exit(11);
 	}
 }
 
@@ -221,6 +224,7 @@ void CWACManageIncomingPacket(CWSocket sock,
 							CW_COPY_NET_ADDR_PTR(&(listGenericThreadDTLSData[indexTmpThread]->addressWTPPtr), addrPtr);
 											
 							if (!CWErr(CWCreateSafeList(&(listGenericThreadDTLSData[indexTmpThread]->packetDataList)))) {
+								fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 								exit(-1);
 							}
 							
@@ -239,6 +243,7 @@ void CWACManageIncomingPacket(CWSocket sock,
 							
 							if(!CWErr(CWCreateThread(&(listGenericThreadDTLSData[indexTmpThread]->thread_GenericDataChannelHandshake), CWGenericWTPDataHandshake, listGenericThreadDTLSData[indexTmpThread]))) {
 								CWLog("Error starting Thread that manage generich handshake with WTP");
+								fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 								exit(1);
 							}
 							
@@ -363,7 +368,7 @@ void CWACManageIncomingPacket(CWSocket sock,
 		CWDiscoveryRequestValues values;
 		
 		if(!CWErr(CWThreadMutexLock(&gActiveWTPsMutex))) 
-			exit(1);
+			exit(12);
 			
 		tmp = gActiveWTPs;
 		CWThreadMutexUnlock(&gActiveWTPsMutex);
@@ -400,6 +405,7 @@ void CWACManageIncomingPacket(CWSocket sock,
 				 * things.
 				 */
 				CWLog("Critical Error Assembling Discovery Response");
+				fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 				exit(1);
 			}
 
@@ -409,6 +415,7 @@ void CWACManageIncomingPacket(CWSocket sock,
 								 (*msgPtr).offset))) {
 
 				CWLog("Critical Error Sending Discovery Response");
+				fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 				exit(1);
 			}
 			
@@ -424,7 +431,7 @@ void CWACManageIncomingPacket(CWSocket sock,
 			
 			CWUseSockNtop(addrPtr, CWDebugLog("Possible Client Hello from %s", str););
 			
-			if(!CWErr(CWThreadMutexLock(&gWTPsMutex))) exit(1);
+			if(!CWErr(CWThreadMutexLock(&gWTPsMutex))) exit(13);
 			/* look for the first free slot */
 			for(i = 0; i < gMaxWTPs && gWTPs[i].isNotFree; i++);
 	
@@ -440,7 +447,7 @@ void CWACManageIncomingPacket(CWSocket sock,
 			if (!CWErr(CWCreateSafeList(&gWTPs[i].packetReceiveList))) {
 
 				if(!CWErr(CWThreadMutexLock(&gWTPsMutex))) 
-					exit(1);
+					exit(14);
 				gWTPs[i].isNotFree = CW_FALSE;
 				CWThreadMutexUnlock(&gWTPsMutex);
 				return;
@@ -457,7 +464,7 @@ void CWACManageIncomingPacket(CWSocket sock,
 			 */
 			#ifdef CW_DTLS_DATA_CHANNEL
 				if (!CWErr(CWCreateSafeList(&gWTPs[i].packetReceiveDataList))) {
-					if(!CWErr(CWThreadMutexLock(&gWTPsMutex))) exit(1);
+					if(!CWErr(CWThreadMutexLock(&gWTPsMutex))) exit(15);
 					gWTPs[i].isNotFree = CW_FALSE;
 					CWThreadMutexUnlock(&gWTPsMutex);
 					return;
@@ -496,7 +503,7 @@ void CWACManageIncomingPacket(CWSocket sock,
 
 				CW_FREE_OBJECT(argPtr);
 				if(!CWErr(CWThreadMutexLock(&gWTPsMutex))) 
-					exit(1);
+					exit(16);
 				
 				CWDestroySafeList(&gWTPs[i].packetReceiveList);
 				gWTPs[i].isNotFree = CW_FALSE;
@@ -638,7 +645,7 @@ CW_THREAD_RETURN_TYPE CWManageWTP(void *arg) {
 	}
 
 	if(!CWErr(CWThreadMutexLock(&gActiveWTPsMutex))) 
-		exit(1);
+		exit(17);
 
 	gActiveWTPs++;
 
@@ -894,6 +901,7 @@ CW_THREAD_RETURN_TYPE CWManageWTP(void *arg) {
 						CWThread thread_receiveDataChannel;
 						if(!CWErr(CWCreateThread(&thread_receiveDataChannel, CWACReceiveDataChannel, argPtrDataThread))) {
 							CWLog("Error starting Thread that receive data channel");
+							fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 							exit(1);
 						}
 						gWTPs[i].sessionDataActive = CW_TRUE;
@@ -1115,7 +1123,7 @@ void _CWCloseThread(int i) {
 	/**** ACInterface ****/
 
 	if(!CWErr(CWThreadMutexLock(&gActiveWTPsMutex))) 
-		exit(1);
+		exit(18);
 	
 	gInterfaces[gWTPs[i].interfaceIndex].WTPCount--;
 	gActiveWTPs--;

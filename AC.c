@@ -179,6 +179,7 @@ void CWACInit() {
 	if(!CWParseSettingsFile())
 	{
 		CWLog("Can't start AC");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 	
@@ -191,6 +192,7 @@ void CWACInit() {
 	CWThreadSetSignals(SIG_BLOCK, 1, SIGALRM);
 	if (timer_init() == 0) {
 		CWLog("Can't init timer module");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 
@@ -206,6 +208,7 @@ void CWACInit() {
 
 		/* error starting */
 		CWLog("Can't start AC");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 
@@ -224,6 +227,7 @@ void CWACInit() {
 						CW_FALSE,
 						CWACSemPostForOpenSSLHack))) {
 			CWLog("Can't start AC");
+			fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 			exit(1);
 		}
 	} else { /* preshared */
@@ -234,6 +238,7 @@ void CWACInit() {
 						CW_FALSE,
 						CWACSemPostForOpenSSLHack))) {
 			CWLog("Can't start AC");
+			fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 			exit(1);
 		}
 	}
@@ -253,6 +258,7 @@ void CWACInit() {
 	if(!CWACTapInterfaceInit())
 	{
 		CWLog("Error in AC Tap Interface creation");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(-1);
 	}
 	/* store network interface's addresses */
@@ -261,6 +267,7 @@ void CWACInit() {
 	
 	if (gInterfacesCount<=0){
 		CWLog("Can't start AC");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 
@@ -280,6 +287,7 @@ void CWACInit() {
 	CW_FREE_OBJECT(IPv4Addresses);
 
 	if(!CWErr(CWCreateThreadMutex(&gCreateIDMutex))) {
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 

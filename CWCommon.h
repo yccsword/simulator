@@ -89,6 +89,10 @@
 #include "HostapdHeaders/utils/common.h"
 #include "HostapdHeaders/common/ieee802_11_defs.h"
 #include "HostapdHeaders/common/ieee802_11_common.h"
+//simulator
+#include "simulator/simulator.h"
+#include "simulator/tools.h"
+#include "simulator/threadpool.h"
 /* ******************************************* */
 
 // make sure the types really have the right sizes
@@ -105,11 +109,16 @@ CW_COMPILE_TIME_ASSERT(char_size, sizeof(char) == 1);
 
 #define DEFAULT_LOG_SIZE					1000000
 
+#ifndef CWBOOL
+#define CWBOOL
 typedef enum {
 	CW_FALSE = 0,
 	CW_TRUE = 1
 } CWBool;
+#endif
 
+#ifndef CWSTATETRANSITION
+#define CWSTATETRANSITION
 typedef enum {
 	CW_ENTER_SULKING,
 	CW_ENTER_DISCOVERY,
@@ -120,6 +129,7 @@ typedef enum {
 	CW_ENTER_RESET,
 	CW_QUIT,
 } CWStateTransition;
+#endif
 
 extern const char *CW_CONFIG_FILE;
 extern int gCWForceMTU;

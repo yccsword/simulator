@@ -275,6 +275,36 @@
 #define 	CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_AC_PRIORITY_LEN	1
 #define 	CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_AC_PRIORITY_DEFAULT	3
 
+/*
+ * CreatComm Vendor Specific data
+ */
+#define 	CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_UPDATE_STATION                32
+#define 	CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_SEARCH_STA_WEB_AUTH_STATE     33
+
+#define     CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_WHITE_LIST_ENABLE             34    // white list enable, 1 enable, 0 disable
+#define     CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_WHITE_LIST                    35    // white list config
+
+#define     CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_EXTERNAL_PORTAL_AC_NAME       36    // portal config ac name
+#define     CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_EXTERNAL_PORTAL_URL           37    // portal config url
+#define     CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_EXTERNAL_PORTAL_ENABLE        38    // portal auth enable 
+
+#define     CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_WHITE_LIST_DEL_IP             40    // white list config
+#define     CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_WHITE_LIST_ADD_IP             41    // white list config
+
+#define     CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_ACL_RULES                     42    // ACL Rules
+#define     CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_STATION_RULES                 43    // Station Rules
+#define     CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_ACL_RULE_UPDATE               44    // Update ACL Rule
+
+
+#define     CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_80211N_RADIO_CAP_TLV         129
+#define     CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_80211N_RADIO_CFG_TLV         147
+#define 	CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_WTP_ROLE		                151
+#define 	CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_WLAN_TEMPLATE		        152
+#define 	CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_AP_MACS		                153
+
+#define 	CW_WTP_ROLE_AP        0
+#define 	CW_WTP_ROLE_STATION   1
+
 // IEEE 802.11 Message Element
 #define 	CW_MSG_ELEMENT_IEEE80211_ADD_WLAN_CW_TYPE						1024
 #define 	CW_MSG_ELEMENT_IEEE80211_ASSIGNED_WTP_BSSID_CW_TYPE				1026
@@ -285,6 +315,12 @@
 #define 	CW_MSG_ELEMENT_IEEE80211_SUPPORTED_RATES_CW_TYPE				1040
 #define 	CW_MSG_ELEMENT_IEEE80211_UPDATE_WLAN_CW_TYPE					1044
 #define 	CW_MSG_ELEMENT_IEEE80211_WTP_RADIO_INFORMATION_CW_TYPE			1048
+// IEEE 802.11 Message Element, Changru Fan add, 08/2016
+#define 	CW_MSG_ELEMENT_IEEE80211_DIRECT_SEQ_CTRL_CW_TYPE			    1028
+#define 	CW_MSG_ELEMENT_IEEE80211_OFDM_CTRL_CW_TYPE                      1033
+#define 	CW_MSG_ELEMENT_IEEE80211_TX_POWER_CW_TYPE                       1041
+#define 	CW_MSG_ELEMENT_IEEE80211_RADIO_CONFIGURATION_CW_TYPE            1046
+
 
 // CAPWAP Protocol Variables
 #define		CW_MAX_RETRANSMIT_DEFAULT		5
@@ -436,6 +472,7 @@ typedef struct {
 		CW_WTP_SERIAL_NUMBER	= 1,
 		CW_BOARD_ID		= 2,
 		CW_BOARD_REVISION	= 3,
+		CW_BASE_MAC_ADDRESS	= 4,
 
 		CW_WTP_HARDWARE_VERSION	= 0,
 		CW_WTP_SOFTWARE_VERSION	= 1,
@@ -490,11 +527,12 @@ typedef struct {
  * Correct values to save in Discovery Response and Join Response
  * flag Security as described in RFC 5415
  */
+#ifndef CWACVENDORINFOS
+#define CWACVENDORINFOS
 typedef enum {
 	CW_PRESHARED = 4,
 	CW_X509_CERTIFICATE = 2
 } CWAuthSecurity;
-
 
 typedef struct {
 	CWNetworkLev4Address addr;
@@ -527,6 +565,7 @@ typedef struct  {
 	int vendorInfosCount;
 	CWACVendorInfoValues *vendorInfos;
 } CWACVendorInfos;
+#endif
 
 typedef struct {
 	int rebootCount;
@@ -714,6 +753,7 @@ void CWFreeMessageFragments(CWProtocolMessage* messages, int fragmentsNum);
 void CWProtocolStore8(CWProtocolMessage *msgPtr, unsigned char val);
 void CWProtocolStore16(CWProtocolMessage *msgPtr, unsigned short val);
 void CWProtocolStore32(CWProtocolMessage *msgPtr, unsigned int val);
+void CWProtocolStore64(CWProtocolMessage *msgPtr, unsigned long long val);//ycc fix
 void CWProtocolStoreStr(CWProtocolMessage *msgPtr, char *str);
 void CWProtocolStoreMessage(CWProtocolMessage *msgPtr, CWProtocolMessage *msgToStorePtr);
 void CWProtocolStoreRawBytes(CWProtocolMessage *msgPtr, char *bytes, int len);
@@ -731,15 +771,15 @@ CWBool CWParseTransportHeader(CWProtocolMessage *msgPtr, CWProtocolTransportHead
 CWBool CWParseControlHeader(CWProtocolMessage *msgPtr, CWControlHeaderValues *valPtr);
 CWBool CWParseFormatMsgElem(CWProtocolMessage *completeMsg,unsigned short int *type,unsigned short int *len);
 
-CWBool CWAssembleTransportHeader(CWProtocolMessage *transportHdrPtr, CWProtocolTransportHeaderValues *valuesPtr);
+CWBool CWAssembleTransportHeader(CWProtocolMessage *transportHdrPtr, CWProtocolTransportHeaderValues *valuesPtr, AP_TABLE * cur_AP);//ycc fix mutli thread
 CWBool CWAssembleTransportHeaderKeepAliveData(CWProtocolMessage *transportHdrPtr, CWProtocolTransportHeaderValues *valuesPtr, int keepAlive);
 CWBool CWAssembleControlHeader(CWProtocolMessage *controlHdrPtr, CWControlHeaderValues *valPtr);
-CWBool CWAssembleMessage(CWProtocolMessage **completeMsgPtr, int *fragmentsNumPtr, int PMTU, int seqNum, int msgTypeValue, CWProtocolMessage *msgElems, const int msgElemNum, CWProtocolMessage *msgElemsBinding, const int msgElemBindingNum, int is_crypted);
+CWBool CWAssembleMessage(CWProtocolMessage **completeMsgPtr, int *fragmentsNumPtr, int PMTU, int seqNum, int msgTypeValue, CWProtocolMessage *msgElems, const int msgElemNum, CWProtocolMessage *msgElemsBinding, const int msgElemBindingNum, int is_crypted, AP_TABLE * cur_AP);//ycc fix mutli thread
 CWBool CWAssembleMsgElem(CWProtocolMessage *msgPtr, unsigned int type);
 CWBool CWAssembleUnrecognizedMessageResponse(CWProtocolMessage **messagesPtr, int *fragmentsNumPtr, int PMTU, int seqNum, int msgType);
 
-CWBool CWAssembleMsgElemRadioAdminState(CWProtocolMessage *msgPtr);			//29
-CWBool CWAssembleMsgElemRadioOperationalState(int radioID, CWProtocolMessage *msgPtr);	//30
+CWBool CWAssembleMsgElemRadioAdminState(CWProtocolMessage *msgPtr, AP_TABLE * cur_AP);			//29//ycc fix mutli thread
+CWBool CWAssembleMsgElemRadioOperationalState(int radioID, CWProtocolMessage *msgPtr, AP_TABLE * cur_AP);	//30//ycc fix mutli thread
 CWBool CWAssembleMsgElemResultCode(CWProtocolMessage *msgPtr,CWProtocolResultCode code);//31
 CWBool CWAssembleVendorMsgElemResultCodeWithPayload(CWProtocolMessage *msgPtr,CWProtocolResultCode code, CWProtocolVendorSpecificValues *payload);//49
 CWBool CWAssembleMsgElemSessionID(CWProtocolMessage *msgPtr, char * sessionID);		//32

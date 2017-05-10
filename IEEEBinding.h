@@ -585,7 +585,7 @@ void CW80211ManagementFrameEvent(struct nl_handle **handle, cw_sock_handler hand
 CWBool CWStartAssociationRequestTimer(WTPSTAInfo * staInfo, WTPBSSInfo * WTPBSSInfoPtr);
 void CWWTPAssociationRequestTimerExpiredHandler(void *arg);
 int ieee80211_frequency_to_channel(int freq);
-CWBool CWWTPEventRequestDeleteStation(int radioId, unsigned char * staAddr);
+CWBool CWWTPEventRequestDeleteStation(int radioId, unsigned char * staAddr, AP_TABLE * cur_AP);
 
 /* CW80211InformationElements.c */
 char * CW80211AssembleProbeResponse(WTPBSSInfo * WTPBSSInfoPtr, struct CWFrameProbeRequest *request, int *offset);

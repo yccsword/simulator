@@ -70,6 +70,13 @@ void CWProtocolStore32(CWProtocolMessage *msgPtr, unsigned int val) {
 	(msgPtr->offset) += 4;
 }
 
+// stores 64 bits in the message, increments the current offset in bytes //ycc fix
+void CWProtocolStore64(CWProtocolMessage *msgPtr, unsigned long long val) {
+	val = htonl(val);
+	CW_COPY_MEMORY(&((msgPtr->msg)[(msgPtr->offset)]), &(val), 8);
+	(msgPtr->offset) += 8;
+}
+
 // stores a string in the message, increments the current offset in bytes. Doesn't store
 // the '\0' final character.
 void CWProtocolStoreStr(CWProtocolMessage *msgPtr, char *str) {
@@ -153,7 +160,7 @@ void CWProtocolDestroyMsgElemData(void *f) {
 // Assemble a Message Element creating the appropriate header and storing the message.
 CWBool CWAssembleMsgElem(CWProtocolMessage *msgPtr, unsigned int type) {
 	CWProtocolMessage completeMsg;
-	
+
 	if(msgPtr == NULL) return CWErrorRaise(CW_ERROR_WRONG_ARG, NULL);
 	
 	CW_CREATE_PROTOCOL_MESSAGE(completeMsg, 6+(msgPtr->offset), return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
@@ -181,16 +188,23 @@ CWBool CWAssembleMsgElem(CWProtocolMessage *msgPtr, unsigned int type) {
 }
 
 // Assembles the Transport Header
-CWBool CWAssembleTransportHeader(CWProtocolMessage *transportHdrPtr, CWProtocolTransportHeaderValues *valuesPtr) {
+CWBool CWAssembleTransportHeader(CWProtocolMessage *transportHdrPtr, CWProtocolTransportHeaderValues *valuesPtr, AP_TABLE * cur_AP) {
 	
 	char radio_mac_present = 0;
 	int i;
-
-	for(i=0;i<6;i++){
-		//printf(":::: %02X\n",gRADIO_MAC[i]);
-		if( gRADIO_MAC[i]!=0 ) {
-			radio_mac_present = 8;
-			break;
+	//char StrMac[18] = "11:22:33:44:55:66";//ycc fix
+	CWBindingTransportHeaderValues tempwireless = {80,90,100};//ycc fix
+	//Str2Mac(gRADIO_MAC, StrMac);//ycc fix
+	if (cur_AP != NULL)
+	{
+		for(i=0;i<6;i++){
+			//printf(":::: %02X\n",gRADIO_MAC[i]);
+			//if( gRADIO_MAC[i]!=0 ) {
+			if( cur_AP->Connect_Radio_Info->Bssid[i]!=0 ) {
+				radio_mac_present = 8;
+				valuesPtr->bindingValuesPtr = &tempwireless;//ycc fix
+				break;
+			}
 		}
 	}
 	
@@ -333,9 +347,10 @@ CWBool CWAssembleTransportHeader(CWProtocolMessage *transportHdrPtr, CWProtocolT
 	if(radio_mac_present){
 		CWProtocolStore8(transportHdrPtr,6);
 		
-		CWThreadMutexLock(&gRADIO_MAC_mutex);		
-			CWProtocolStoreRawBytes(transportHdrPtr,gRADIO_MAC,6);
-		CWThreadMutexUnlock(&gRADIO_MAC_mutex);
+		//CWThreadMutexLock(&gRADIO_MAC_mutex);		
+			//CWProtocolStoreRawBytes(transportHdrPtr,gRADIO_MAC,6);
+			CWProtocolStoreRawBytes(transportHdrPtr,cur_AP->Connect_Radio_Info->Bssid,6);
+		//CWThreadMutexUnlock(&gRADIO_MAC_mutex);
 		
 		CWProtocolStore8(transportHdrPtr,0);
 	}
@@ -555,11 +570,11 @@ CWBool CWAssembleMsgElemResultCode(CWProtocolMessage *msgPtr, CWProtocolResultCo
 
 // Assemble a CAPWAP Control Packet, with the given Message Elements, Sequence Number and Message Type. Create Transport and Control Headers.
 // completeMsgPtr is an array of fragments (can be of size 1 if the packet doesn't need fragmentation
-CWBool CWAssembleMessage(CWProtocolMessage **completeMsgPtr, int *fragmentsNumPtr, int PMTU, int seqNum, int msgTypeValue, CWProtocolMessage *msgElems, const int msgElemNum, CWProtocolMessage *msgElemsBinding, const int msgElemBindingNum, int is_crypted) {
+CWBool CWAssembleMessage(CWProtocolMessage **completeMsgPtr, int *fragmentsNumPtr, int PMTU, int seqNum, int msgTypeValue, CWProtocolMessage *msgElems, const int msgElemNum, CWProtocolMessage *msgElemsBinding, const int msgElemBindingNum, int is_crypted, AP_TABLE * cur_AP) {
 	CWProtocolMessage transportHdr, controlHdr, msg;
 	int msgElemsLen = 0;
 	int i;
-	
+
 	CWProtocolTransportHeaderValues transportVal;
 	CWControlHeaderValues controlVal;
 	
@@ -638,7 +653,7 @@ CWBool CWAssembleMessage(CWProtocolMessage **completeMsgPtr, int *fragmentsNumPt
 		transportVal.type = 0;
 
 		// Assemble Message Elements
-		if	(!(CWAssembleTransportHeader(&transportHdr, &transportVal))) {
+		if	(!(CWAssembleTransportHeader(&transportHdr, &transportVal, cur_AP))) {
 			CW_FREE_PROTOCOL_MESSAGE(msg);
 			CW_FREE_PROTOCOL_MESSAGE(transportHdr);
 			CW_FREE_OBJECT(completeMsgPtr);
@@ -680,7 +695,7 @@ CWBool CWAssembleMessage(CWProtocolMessage **completeMsgPtr, int *fragmentsNumPt
 			//CWDebugLog("Fragment #:%d, offset:%d, bytes stored:%d/%d", i, transportVal.fragmentOffset, fragSize, totalSize);
 			
 			// Assemble Transport Header for this fragment
-			if(!(CWAssembleTransportHeader(&transportHdr, &transportVal))) {
+			if(!(CWAssembleTransportHeader(&transportHdr, &transportVal, cur_AP))) {
 				CW_FREE_PROTOCOL_MESSAGE(msg);
 				CW_FREE_PROTOCOL_MESSAGE(transportHdr);
 				CW_FREE_OBJECT(completeMsgPtr);
@@ -1044,9 +1059,9 @@ CWBool CWAssembleUnrecognizedMessageResponse(CWProtocolMessage **messagesPtr, in
 
 	if(!(CWAssembleMessage(messagesPtr, fragmentsNumPtr, PMTU, seqNum, msgType, msgElems, msgElemCount, msgElemsBinding, msgElemBindingCount
 #ifdef CW_NO_DTLS
-		,CW_PACKET_PLAIN))) 
+		,CW_PACKET_PLAIN,NULL))) 
 #else
-		,CW_PACKET_CRYPT))) 
+		,CW_PACKET_CRYPT,NULL))) 
 #endif
 		return CW_FALSE;
 	

@@ -44,7 +44,7 @@ LDFLAGS = -lssl -lcrypto -lpthread -ldl -D_REENTRANT
 
 #Elena Agostini: libnl
 LDFLAGS += -lnl-genl-3 -lnl-3
-LIB_PATH = /usr/local/lib
+LIB_PATH = /usr/local/lib -L./mysql/lib
 INC_PATH = /usr/include/libnl3
  
 #LDFLAGS = /usr/lib/libefence.a ./static/libssl.a ./static/libcrypto.a -lpthread -ldl -D_REENTRANT
@@ -75,7 +75,16 @@ CFLAGS += -DOPENSSL_NO_KRB5
 
 CFLAGS += -I/usr/include/libnl3
 CFLAGS += -I./HostapdHeaders/utils/
+# MySQL
+MYSQL_INCLUDE = -I./mysql/include
+CFLAGS += $(MYSQL_INCLUDE)
+LDFLAGS += -lmysqlclient
 RM = /bin/rm -f 
+#ConfigFill
+CFG_INCLUDE = -I./fill_database
+CFLAGS += $(CFG_INCLUDE)
+#GDB
+#CFLAGS += -g -ggdb
 
 # list of generated object files for AC. 
 AC_OBJS = AC.o ACConfigFile.o ACMainLoop.o ACDiscoveryState.o ACJoinState.o \
@@ -86,6 +95,7 @@ AC_OBJS = AC.o ACConfigFile.o ACMainLoop.o ACDiscoveryState.o ACJoinState.o \
 	ACBinding.o ACInterface.o ACSettingsFile.o timerlib.o tap.o \
 	ACIEEEConfigurationState.o CW80211InformationElements.o CWTunnel.o CWAVL.o \
 	./HostapdHeaders/utils/os_unix.o \
+	./simulator/tools.o \
 
 # list of generated object files for WTP.
 WTP_OBJS = WTP.o WTPFrameReceive.o WTPFreqStatsReceive.o WTPStatsReceive.o WTPConfigFile.o WTPProtocol.o WTPProtocol_User.o \
@@ -95,6 +105,7 @@ WTP_OBJS = WTP.o WTPFrameReceive.o WTPFreqStatsReceive.o WTPStatsReceive.o WTPCo
 	WTPDriverInteraction.o WTPSettingsFile.o timerlib.o \
 	WTPRadio.o WTPNL80211DriverCallback.o WTPNL80211Driver.o WTPNL80211Netlink.o WTPIEEEConfigurationState.o CW80211ManagementFrame.o CW80211InformationElements.o CWTunnel.o CWAVL.o \
 	./HostapdHeaders/utils/os_unix.o \
+	./simulator/simulator.o ./simulator/tools.o ./simulator/threadpool.o ./fill_database/cfg.o\
 	
 WUA_OBJS = WUA.o
  
@@ -117,13 +128,13 @@ WUA_NAME = WUA
 all: $(AC_NAME) $(WTP_NAME) $(WUA_NAME)
 
 $(AC_NAME): $(AC_OBJS) 
-	$(CC) $(AC_OBJS) $(CC_FLAGS) $(OPENSSL_INCLUDE) $(LDFLAGS) -o $(AC_NAME) 
+	$(CC) $(AC_OBJS) $(CC_FLAGS) $(OPENSSL_INCLUDE) -L$(LIB_PATH) $(LDFLAGS) -o $(AC_NAME) 
 #-DSOFTMAC
 $(WTP_NAME): $(WTP_OBJS) 
-	$(CC) -DWRITE_STD_OUTPUT  $(WTP_OBJS) $(CC_FLAGS) -L$(LIB_PATH)  $(LDFLAGS) -o $(WTP_NAME) 
+	$(CC) -DWRITE_STD_OUTPUT  $(WTP_OBJS) $(CC_FLAGS) -L$(LIB_PATH) $(LDFLAGS) -o $(WTP_NAME) 
 
 $(WUA_NAME): $(WUA_OBJS) 
-	$(CC) $(WUA_OBJS) $(CC_FLAGS)  $(LDFLAGS) -o $(WUA_NAME) 
+	$(CC) $(WUA_OBJS) $(CC_FLAGS) -L$(LIB_PATH) $(LDFLAGS) -o $(WUA_NAME) 
 
 clean: 
 	$(RM) $(AC_NAME) $(WTP_NAME) $(WUA_NAME) $(AC_OBJS) $(WTP_OBJS) $(WUA_OBJS) $(AC_DEPS) $(WTP_DEPS)

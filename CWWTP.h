@@ -57,11 +57,14 @@
 /*_____________________________________________________*/
 /*  *******************___TYPES___*******************  */
 
+#ifndef CWACDESCRIPTOR
+#define CWACDESCRIPTOR
 typedef struct {
 	char *address;
 	CWBool received;
 	int seqNum;
 } CWACDescriptor;
+#endif
 
 
 #include "WTPProtocol.h"
@@ -187,10 +190,11 @@ CWBool CWReceiveMessage(CWProtocolMessage *msgPtr);
 CWBool CWReceiveDataMessage(CWProtocolMessage *msgPtr);
 CWBool CWWTPSendAcknowledgedPacket(int seqNum,
 				   CWList msgElemlist, 
-				   CWBool (assembleFunc)(CWProtocolMessage **, int *, int, int, CWList),
+				   CWBool (assembleFunc)(CWProtocolMessage **, int *, int, int, CWList, AP_TABLE *cur_AP),
 				   CWBool (parseFunc)(char*, int, int, void*),
-				   CWBool (saveFunc)(void*),
-				   void *valuesPtr);
+				   CWBool (saveFunc)(void*, AP_TABLE *cur_AP),
+				   void *valuesPtr,
+				   AP_TABLE * cur_AP);
 void CWWTPDestroy();
 
 /* in WTPRunState.c */
@@ -205,7 +209,8 @@ CWBool CWAssembleWTPEventRequest(CWProtocolMessage **messagesPtr,
 				 int PMTU,
 				 int seqNum,
 				 CWList msgElemList,
-				 CWMsgElemDataDeleteStation * infoDeleteStation);
+				 CWMsgElemDataDeleteStation * infoDeleteStation,
+				 AP_TABLE * cur_AP);
 
 CW_THREAD_RETURN_TYPE CWWTPReceiveDtlsPacket(void *arg);
 CW_THREAD_RETURN_TYPE CWWTPReceiveDataPacket(void *arg);
@@ -217,7 +222,7 @@ int getInterfaceMacAddr(char* interface, unsigned char* macAddr);
 int initWTPSessionID(char * sessionID);
 int CWWTPGetStatisticsTimer ();
 void CWWTPGetIPv6Address(struct sockaddr_in6* myAddr);
-CWBool CWGetWTPRadiosAdminState(CWRadiosAdminInfo *valPtr);
+CWBool CWGetWTPRadiosAdminState(CWRadiosAdminInfo *valPtr, AP_TABLE * cur_AP);//ycc fix mutli thread
 CWBool CWGetDecryptErrorReport(int radioID, CWDecryptErrorReportInfo *valPtr);
 
 /* in WTPRetransmission.c */
@@ -292,9 +297,9 @@ CWBool CWStopKeepAliveTimer();
  * 
  * Echo Request Timer
  */
-CWBool CWStartEchoRequestTimer();
+CWBool CWStartEchoRequestTimer(AP_TABLE * cur_AP);
 CWBool CWStopEchoRequestsTimer();
-CWBool CWResetEchoRequestRetransmit();
+CWBool CWResetEchoRequestRetransmit(AP_TABLE * cur_AP);
 void CWWTPEchoRequestTimerExpiredHandler(void *arg);
 
 CWBool CWStartNeighborDeadTimer();
@@ -306,5 +311,11 @@ void CWWTPRetransmitTimerExpiredHandler(CWTimerArg arg);
 
 				   
 extern CWBool WTPExitOnUpdateCommit;
+
+extern int DiscoverIntervalSec;
+extern int DiscoverIntervalmSec;
+extern int gCWMaxDiscoveries;
+extern int WTP_RestartPort;
+extern int gCWSilentInterval;
 
 #endif

@@ -142,7 +142,7 @@ CWBool CWParseSettingsFile()
 		
 			strncpy(port_str, startValue, offset);
 			port_str[offset] ='\0';
-			gPhyInterfaceCount = atoi(port_str);
+			gPhyInterfaceCount = atoi(port_str);//ycc fix
 			if(gPhyInterfaceCount > 0)
 			{
 				CW_CREATE_ARRAY_ERR(gPhyInterfaceName, gPhyInterfaceCount, char *, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY,NULL);)

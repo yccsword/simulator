@@ -56,6 +56,7 @@ int ACServerConnect(char *address, int port)
 	
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("socket error:");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 
@@ -66,10 +67,12 @@ int ACServerConnect(char *address, int port)
 
 	if (connect(sockfd, (SA*) &servaddr, sizeof(servaddr)) < 0) {
 		perror("connect error:");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 
 	if (Read32(sockfd, &ret) != 4) {
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 
@@ -155,6 +158,7 @@ void readWTPInfo(int acserver, struct WTPInfo *WTPInfo, int pos)
 
 err:
 	ACServerDisconnect(acserver);
+	fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 	exit(1);		
 }
 

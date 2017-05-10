@@ -254,6 +254,7 @@ void _clkini() {
 	if ( sigaction(TIMER_SIGNAL_TYPE, &siga, NULL) ) {
 
 		perror("_clkini: signal failed\n"); 
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
                 exit(-1); 
 	}
 
@@ -417,6 +418,7 @@ struct timer *t;
 //	CWDebugLog("Start System Timer (%d,%d)", timer_value.it_value.tv_sec, timer_value.it_value.tv_usec);
         if (-1 == setitimer(TIMER_INTERVAL_TYPE,&timer_value, (struct itimerval *)0)) { 
                 perror("start_timer: setitimer"); 
+				fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
                 exit(-1); 
         } 
 }
@@ -437,6 +439,7 @@ void cancel_itimer()
         if (-1 == setitimer(TIMER_INTERVAL_TYPE,&cancel_timer, 
                                        (struct itimerval *)0)) { 
                 perror("_setimr: setitimer failed"); 
+				fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
                 exit(-1); 
         } 
         update_all_timers_by(current_time() - timer_set_timestamp); 

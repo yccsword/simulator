@@ -182,7 +182,7 @@ CWBool CWAssembleJoinResponse(CWProtocolMessage **messagesPtr,
 	
 	if(
 	   (!(CWAssembleMsgElemACDescriptor(&(msgElems[++k])))) ||
-	   (!(CWAssembleMsgElemACName(&(msgElems[++k])))) ||
+	   (!(CWAssembleMsgElemACName(&(msgElems[++k]), NULL))) ||
 		/*
 		 * Elena Agostini - 02/2014
 	 	 *
@@ -267,9 +267,9 @@ CWBool CWAssembleJoinResponse(CWProtocolMessage **messagesPtr,
 				msgElemsBinding,
 				msgElemBindingCount,
 #ifdef CW_NO_DTLS
-				CW_PACKET_PLAIN)))
+				CW_PACKET_PLAIN,NULL)))
 #else
- 				CW_PACKET_CRYPT)))
+ 				CW_PACKET_CRYPT,NULL)))
 #endif
 		return CW_FALSE;
 

@@ -50,7 +50,10 @@
 
 typedef int CWSocket;
 
+#ifndef CWNETWORKLEV4ADDRESS
+#define CWNETWORKLEV4ADDRESS
 typedef struct sockaddr_storage CWNetworkLev4Address;
+#endif
 
 typedef enum {
 	CW_IPv6,
@@ -81,7 +84,9 @@ extern CWNetworkLev3Service gNetworkPreferredFamily;
 #define		CWNetworkCloseSocket(x)		{ shutdown(SHUT_RDWR, x); close(x); }
 
 int CWNetworkGetAddressSize(CWNetworkLev4Address *addrPtr);
-CWBool CWNetworkSendUnsafeConnected(CWSocket sock, const char *buf, int len);
+#define CWNetworkSendUnsafeConnected(sock, buf, len) SimulatorNetworkSendUnsafeConnected(__func__, __LINE__, sock, buf, len) 
+//CWBool CWNetworkSendUnsafeConnected(CWSocket sock, const char *buf, int len);
+CWBool SimulatorNetworkSendUnsafeConnected(char *func, int line, CWSocket sock, const char *buf, int len);
 CWBool CWNetworkSendUnsafeUnconnected(CWSocket sock, CWNetworkLev4Address *addrPtr, const char *buf, int len);
 CWBool CWNetworkReceiveUnsafe(CWSocket sock, char *buf, int len, int flags, CWNetworkLev4Address *addrPtr, int *readBytesPtr);
 CWBool CWNetworkReceiveUnsafeConnected(CWSocket sock, char *buf, int len, int *readBytesPtr);

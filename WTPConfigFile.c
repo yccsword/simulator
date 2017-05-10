@@ -216,7 +216,7 @@ CWBool CWConfigFileDestroyLib() {
 	}
 
 	/* Elena Agostini - 02/2014: Port number params config.wtp */
-	WTP_PORT_CONTROL=gConfigValues[12].value.int_value;
+	WTP_PORT_CONTROL=gConfigValues[12].value.int_value;// ycc fix
 	WTP_PORT_DATA=gConfigValues[13].value.int_value;
 	
 	/* Elena Agostini - 04/2014: custom WTP log file name */

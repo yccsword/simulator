@@ -11,6 +11,8 @@ struct CWTimerAssociationInfo {
 	WTPSTAInfo * staInfo;
 };
 
+struct timeval tval_before, tval_after, tval_result;
+
 /* ------------------------------------------------ */
 CW_THREAD_RETURN_TYPE CWWTPBSSManagement(void *arg){
 	struct WTPBSSInfo * BSSInfo = (struct WTPBSSInfo *) arg;
@@ -132,6 +134,8 @@ void CW80211EventProcess(WTPBSSInfo * WTPBSSInfoPtr, int cmd, struct nlattr **tb
 	if (WLAN_FC_GET_TYPE(fc) == WLAN_FC_TYPE_MGMT && WLAN_FC_GET_STYPE(fc) == WLAN_FC_STYPE_AUTH)
 	{
 		CWLog("[80211] ______ Auth Request Received");
+	
+		gettimeofday(&tval_before, NULL);
 		
 		struct CWFrameAuthRequest authRequest;
 		if(!CW80211ParseAuthRequest(frameReceived, &authRequest))
@@ -240,6 +244,10 @@ void CW80211EventProcess(WTPBSSInfo * WTPBSSInfoPtr, int cmd, struct nlattr **tb
 				CWLog("NL80211: Errore CW80211SendFrame");
 		}
 		
+		gettimeofday(&tval_after, NULL);
+		timersub(&tval_after, &tval_before, &tval_result);
+		CWLog("Association Time elapsed: %ld.%06ld\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+
 		CWLog("Sending response to AC");
 		//Send Association Frame Response
 		if(!CWSendFrameMgmtFromWTPtoAC(frameResponse, frameRespLen))
@@ -327,6 +335,8 @@ CWLog("Local MAC... prepare reassociation response");
 		thisSTA = findSTABySA(WTPBSSInfoPtr, disassocRequest.SA);
 		if(thisSTA)
 		{
+			gettimeofday(&tval_before, NULL);
+		
 			//Deauth elimina dal BSS la STA
 			if(WLAN_FC_GET_STYPE(fc) == WLAN_FC_STYPE_DEAUTH)
 			{
@@ -340,7 +350,7 @@ CWLog("Local MAC... prepare reassociation response");
 					if(CWWTPDelStation(WTPBSSInfoPtr, thisSTA))
 					{
 						CWPrintEthernetAddress(disassocRequest.SA, "[CW80211] STA deleted");
-						CWWTPEventRequestDeleteStation(deleteRadioID, deleteStaAddr);
+						CWWTPEventRequestDeleteStation(deleteRadioID, deleteStaAddr, NULL);
 					}
 					else
 						CWPrintEthernetAddress(disassocRequest.SA, "[CW80211] STA NOT deleted");
@@ -367,6 +377,11 @@ CWLog("Local MAC... prepare reassociation response");
 						CWPrintEthernetAddress(disassocRequest.SA, "[CW80211] STA NOT disassociated");
 				}
 			}
+
+		gettimeofday(&tval_after, NULL);
+		timersub(&tval_after, &tval_before, &tval_result);
+		CWLog("Deauth Time elapsed: %ld.%06ld\n", (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+
 		}
 		else
 			CWPrintEthernetAddress(disassocRequest.SA, "[CW80211] STA hasn't an handler");
@@ -529,14 +544,14 @@ void CWWTPAssociationRequestTimerExpiredHandler(void *arg) {
 		if(CWWTPDeauthStation(info->BSSInfo, info->staInfo))
 		{
 			CWPrintEthernetAddress(staAddr, "[CW80211] STA deleted by timer handler");
-			CWWTPEventRequestDeleteStation(radioID, staAddr);
+			CWWTPEventRequestDeleteStation(radioID, staAddr, NULL);
 		}
 		else
 			CWPrintEthernetAddress(staAddr, "[CW80211] STA NOT deleted by timer handler");
 	}
 }
 
-CWBool CWWTPEventRequestDeleteStation(int radioId, unsigned char * staAddr) {
+CWBool CWWTPEventRequestDeleteStation(int radioId, unsigned char * staAddr, AP_TABLE * cur_AP) {
 	
 	CWMsgElemDataDeleteStation * infoDeleteStation;
 	
@@ -547,6 +562,6 @@ CWBool CWWTPEventRequestDeleteStation(int radioId, unsigned char * staAddr) {
 	infoDeleteStation->radioID = radioId;
 	CW_COPY_MEMORY(infoDeleteStation->staAddr, staAddr, ETH_ALEN);
 	
-	if(!CWWTPCheckForWTPEventRequest(CW_MSG_ELEMENT_DELETE_STATION_CW_TYPE, infoDeleteStation))
+	if(!CWWTPCheckForWTPEventRequest(CW_MSG_ELEMENT_DELETE_STATION_CW_TYPE, infoDeleteStation, cur_AP))
 		return CW_FALSE;
 }

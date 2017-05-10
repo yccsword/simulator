@@ -180,9 +180,9 @@ CWBool CWAssembleIEEEConfigurationRequest(CWProtocolMessage **messagesPtr,
 			       msgElemsBinding,
 			       msgElemBindingCount,
 #ifdef CW_NO_DTLS
-			       CW_PACKET_PLAIN)))
+			       CW_PACKET_PLAIN,NULL)))
 #else
-			       CW_PACKET_CRYPT))) 
+			       CW_PACKET_CRYPT,NULL))) 
 #endif
 		return CW_FALSE;
 	

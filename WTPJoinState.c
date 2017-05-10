@@ -52,14 +52,14 @@ CWBool CWAssembleJoinRequest(CWProtocolMessage **messagesPtr,
 			     int *fragmentsNumPtr,
 			     int PMTU,
 			     int seqNum,
-			     CWList msgElemList);
+			     CWList msgElemList, AP_TABLE * cur_AP);
 
 CWBool CWParseJoinResponseMessage(char *msg,
 				  int len,
 				  int seqNum,
 				  CWProtocolJoinResponseValues *valuesPtr);
 
-CWBool CWSaveJoinResponseMessage (CWProtocolJoinResponseValues *joinResponse);
+CWBool CWSaveJoinResponseMessage (CWProtocolJoinResponseValues *joinResponse, AP_TABLE * cur_AP);//ycc fix mutli thread
 
 /*_____________________________________________________*/
 /*  *******************___FUNCTIONS___*******************  */
@@ -67,7 +67,8 @@ CWBool CWSaveJoinResponseMessage (CWProtocolJoinResponseValues *joinResponse);
 /*
  * Manage Join State.
  */
-CWStateTransition CWWTPEnterJoin() {
+pthread_mutex_t init_capwap_control_port_mutex;
+CWStateTransition CWWTPEnterJoin(AP_TABLE * cur_AP) {
 
 	CWTimerID waitJoinTimer;
 	int seqNum;
@@ -77,7 +78,7 @@ CWStateTransition CWWTPEnterJoin() {
 	CWLog("######### Join State #########");
 	
 	/* reset Join state */
-	CWNetworkCloseSocket(gWTPSocket);
+	//CWNetworkCloseSocket(gWTPSocket);
 	CWSecurityDestroySession(gWTPSession);
 	CWSecurityDestroyContext(gWTPSecurityContext);
 	gWTPSecurityContext = NULL;
@@ -91,16 +92,16 @@ CWStateTransition CWWTPEnterJoin() {
 	 * generate Segmentation Fault.
 	 */
 	if(gWTPForceACAddress != NULL) {
-		CW_CREATE_OBJECT_ERR(gACInfoPtr, 
+		CW_CREATE_OBJECT_ERR(cur_AP->ACInfoPtr, 
 				     CWACInfoValues,
 				     return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););	
 	}
 
 	/* Initialize gACInfoPtr */
-	gACInfoPtr->ACIPv4ListInfo.ACIPv4ListCount=0;
-	gACInfoPtr->ACIPv4ListInfo.ACIPv4List=NULL;	
-	gACInfoPtr->ACIPv6ListInfo.ACIPv6ListCount=0;
-	gACInfoPtr->ACIPv6ListInfo.ACIPv6List=NULL;
+	cur_AP->ACInfoPtr->ACIPv4ListInfo.ACIPv4ListCount=0;
+	cur_AP->ACInfoPtr->ACIPv4ListInfo.ACIPv4List=NULL;	
+	cur_AP->ACInfoPtr->ACIPv6ListInfo.ACIPv6ListCount=0;
+	cur_AP->ACInfoPtr->ACIPv6ListInfo.ACIPv6List=NULL;
 
 	if ((waitJoinTimer = timer_add(gCWWaitJoin, 0, CWWTPWaitJoinExpired, NULL)) == -1) {
 		return CW_ENTER_DISCOVERY;
@@ -108,25 +109,39 @@ CWStateTransition CWWTPEnterJoin() {
 
 	if(gWTPForceACAddress != NULL) {
 		CWNetworkGetAddressForHost(gWTPForceACAddress, 
-					   &(gACInfoPtr->preferredAddress));
+					   &(cur_AP->ACInfoPtr->preferredAddress));
 /*
 		struct sockaddr_in *sin = (struct sockaddr_in *)&(gACInfoPtr->preferredAddress);
 		unsigned char *ip = (unsigned char *)&sin->sin_addr.s_addr;
 		CWLog("Preferred: %d %d %d %d\n", ip[0], ip[1], ip[2], ip[3]);
 */	
-		gACInfoPtr->security = gWTPForceSecurity;
+		cur_AP->ACInfoPtr->security = gWTPForceSecurity;
 	}
 	
 	/*
 	 * Open control channel
 	 */
-	if(gWTPSocket)
-		CWNetworkCloseSocket(gWTPSocket);
+	//no jump discover no data channel ycc fix
+
+
+	if(cur_AP->WTPSocket)
+	{
+		Epoll_Del_Socket(cur_AP);
+		CWNetworkCloseSocket(cur_AP->WTPSocket);
+	}
+	CWThreadMutexLock(&init_capwap_control_port_mutex);
 	/* Elena Agostini - 04/2014: make control port always the same inside each WTP */
-	if(!CWErr(CWNetworkInitSocketClientWithPort(&gWTPSocket, &(gACInfoPtr->preferredAddress), WTP_PORT_CONTROL))) {
+	if(!CWErr(CWNetworkInitSocketClientWithPort(&cur_AP->WTPSocket, &(cur_AP->ACInfoPtr->preferredAddress), cur_AP->WTP_PORT_CONTROL))) {
 		timer_rem(waitJoinTimer, NULL);
+		CWThreadMutexUnlock(&init_capwap_control_port_mutex);
 		return CW_ENTER_DISCOVERY;
 	}
+	else
+	{
+		CWThreadMutexUnlock(&init_capwap_control_port_mutex);
+	}
+	Epoll_Add_Socket(cur_AP);
+#if 0
 
 	/*
 	 * Open data channel
@@ -139,9 +154,10 @@ CWStateTransition CWWTPEnterJoin() {
 	}
 	
 	CWLog("Initiate Data Channel");
-
+#endif
 	/* Init DTLS session */
 
+#if 0
 /* Elena Agostini - 04/2014 */	
 #if !defined(CW_NO_DTLS) || defined(CW_DTLS_DATA_CHANNEL)
 	if(gACInfoPtr->security == CW_X509_CERTIFICATE) {
@@ -177,15 +193,17 @@ CWStateTransition CWWTPEnterJoin() {
 		}
 	}
 #endif
+#endif
 
+#if 0
 	CWThread thread_receiveFrame;
 	if(!CWErr(CWCreateThread(&thread_receiveFrame, 
 				 CWWTPReceiveDtlsPacket,
-				 (void*)gWTPSocket))) {
+				 (void*)cur_AP->WTPSocket))) {
 		
 		CWLog("Error starting Thread that receive DTLS packet");
 		timer_rem(waitJoinTimer, NULL);
-		CWNetworkCloseSocket(gWTPSocket);
+		CWNetworkCloseSocket(cur_AP->WTPSocket);
 #ifndef CW_NO_DTLS
 		CWSecurityDestroyContext(gWTPSecurityContext);
 		gWTPSecurityContext = NULL;
@@ -221,6 +239,7 @@ CWStateTransition CWWTPEnterJoin() {
 		return CW_ENTER_DISCOVERY;
 	}
 #endif
+#endif
 	if(gCWForceMTU > 0) {
 		gWTPPathMTU = gCWForceMTU;
 	}
@@ -229,16 +248,18 @@ CWStateTransition CWWTPEnterJoin() {
 	
 	/* send Join Request */
 	seqNum = CWGetSeqNum();
-
+	
 	if(!CWErr(CWWTPSendAcknowledgedPacket(seqNum,
 					      NULL,
 					      CWAssembleJoinRequest,
 					      (void*)CWParseJoinResponseMessage,
 					      (void*)CWSaveJoinResponseMessage,
-					      &values))) {
+					      &values,
+					      cur_AP))) {
 cw_join_err:
 		timer_rem(waitJoinTimer, NULL);
-		CWNetworkCloseSocket(gWTPSocket);
+		Epoll_Del_Socket(cur_AP);
+		CWNetworkCloseSocket(cur_AP->WTPSocket);
 #ifndef CW_NO_DTLS
 		CWSecurityDestroySession(gWTPSession);
 		CWSecurityDestroyContext(gWTPSecurityContext);
@@ -256,7 +277,8 @@ cw_join_err:
 	}
 
 	CWLog("Join Completed");
-	
+
+	Epoll_Mod_Socket(cur_AP);
 	return CW_ENTER_CONFIGURE;
 }
 
@@ -271,10 +293,10 @@ CWBool CWAssembleJoinRequest(CWProtocolMessage **messagesPtr,
 			     int *fragmentsNumPtr,
 			     int PMTU,
 			     int seqNum,
-			     CWList msgElemList) {
+			     CWList msgElemList, AP_TABLE * cur_AP) {
 
 	CWProtocolMessage	*msgElems= NULL;
-	const int 		msgElemCount = 10;
+	const int 		msgElemCount = 10 + cur_AP->RadioCount;
 	CWProtocolMessage 	*msgElemsBinding= NULL;
 	const int 		msgElemBindingCount=0;
 	int 			k = -1;
@@ -285,21 +307,22 @@ CWBool CWAssembleJoinRequest(CWProtocolMessage **messagesPtr,
 	CW_CREATE_PROTOCOL_MSG_ARRAY_ERR(msgElems,
 					 msgElemCount,
 					 return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););	
-		
 		/* Assemble Message Elements */
+		// ycc fix mutli_thread
 	if ( 
 	     (!(CWAssembleMsgElemLocationData(&(msgElems[++k])))) ||
-	     (!(CWAssembleMsgElemWTPBoardData(&(msgElems[++k])))) ||
-	     (!(CWAssembleMsgElemWTPDescriptor(&(msgElems[++k])))) ||
-	     (!(CWAssembleMsgElemWTPIPv4Address(&(msgElems[++k])))) ||
-	     (!(CWAssembleMsgElemWTPName(&(msgElems[++k])))) ||
+	     (!(CWAssembleMsgElemWTPBoardData(&(msgElems[++k]), cur_AP))) ||
+	     (!(CWAssembleMsgElemWTPDescriptor(&(msgElems[++k]), cur_AP))) ||
+	     (!(CWAssembleMsgElemWTPIPv4Address(&(msgElems[++k]), cur_AP))) ||
+	     (!(CWAssembleMsgElemWTPName(&(msgElems[++k]), cur_AP))) ||
 	     (!(CWAssembleMsgElemSessionID(&(msgElems[++k]), &gWTPSessionID[0]))) ||
 	     (!(CWAssembleMsgElemWTPFrameTunnelMode(&(msgElems[++k])))) ||
 	     (!(CWAssembleMsgElemWTPMACType(&(msgElems[++k])))) ||
 		/*
 		 * Elena Agostini - 02/2014: ECN Support Msg Elem MUST be included in Join Request/Response Messages
 	 	 */
-	     (!(CWAssembleMsgElemECNSupport(&(msgElems[++k]))))
+	     (!(CWAssembleMsgElemECNSupport(&(msgElems[++k])))) ||
+	     (!(CWAssembleMsgElemAPType(&(msgElems[++k]), cur_AP)))//ycc fix
 	) {
 		int i;
 		for(i = 0; i <= k; i++) { 
@@ -312,7 +335,7 @@ CWBool CWAssembleJoinRequest(CWProtocolMessage **messagesPtr,
 	
 	//Elena Agostini - 07/2014: nl80211 support. 
 	int indexWTPRadioInfo=0;
-	for(indexWTPRadioInfo=0; indexWTPRadioInfo<gRadiosInfo.radioCount; indexWTPRadioInfo++)
+	for(indexWTPRadioInfo=0; indexWTPRadioInfo < cur_AP->RadioCount; indexWTPRadioInfo++)
 	{
 		if(!(CWAssembleMsgElemWTPRadioInformation( &(msgElems[++k]), gRadiosInfo.radiosInfo[indexWTPRadioInfo].gWTPPhyInfo.radioID, gRadiosInfo.radiosInfo[indexWTPRadioInfo].gWTPPhyInfo.phyStandardValue)))
 		{
@@ -338,6 +361,7 @@ CWBool CWAssembleJoinRequest(CWProtocolMessage **messagesPtr,
 #else
 				 CW_PACKET_CRYPT
 #endif
+				,cur_AP
 				 );
 }
 
@@ -364,7 +388,6 @@ CWBool CWParseJoinResponseMessage(char *msg,
 	
 	/* error will be handled by the caller */
 	if(!(CWParseControlHeader(&completeMsg, &controlVal))) return CW_FALSE;
-
 	if(controlVal.messageTypeValue != CW_MSG_TYPE_VALUE_JOIN_RESPONSE)
 		return CWErrorRaise(CW_ERROR_INVALID_FORMAT, 
 				    "Message is not Join Response as Expected");
@@ -398,7 +421,7 @@ CWBool CWParseJoinResponseMessage(char *msg,
 		valuesPtr->ACIPv4ListInfo.ACIPv4List=NULL;
 		valuesPtr->ACIPv6ListInfo.ACIPv6ListCount=0;
 		valuesPtr->ACIPv6ListInfo.ACIPv6List=NULL;
-	
+
 		switch(type) {
 			case CW_MSG_ELEMENT_AC_DESCRIPTOR_CW_TYPE:
 				/* will be handled by the caller */
@@ -520,23 +543,23 @@ CWBool CWParseJoinResponseMessage(char *msg,
 	return CW_TRUE;
 }
 
-CWBool CWSaveJoinResponseMessage(CWProtocolJoinResponseValues *joinResponse) {
+CWBool CWSaveJoinResponseMessage(CWProtocolJoinResponseValues *joinResponse, AP_TABLE * cur_AP) {
 
    if(joinResponse == NULL) return CWErrorRaise(CW_ERROR_WRONG_ARG, NULL);
 
    if((joinResponse->code == CW_PROTOCOL_SUCCESS) ||
       (joinResponse->code == CW_PROTOCOL_SUCCESS_NAT)) {
 
-	if(gACInfoPtr == NULL) 
+	if(cur_AP->ACInfoPtr == NULL) 
 		return CWErrorRaise(CW_ERROR_NEED_RESOURCE, NULL);
 	
-	gACInfoPtr->stations = (joinResponse->ACInfoPtr).stations;
-	gACInfoPtr->limit = (joinResponse->ACInfoPtr).limit;
-	gACInfoPtr->activeWTPs = (joinResponse->ACInfoPtr).activeWTPs;
-	gACInfoPtr->maxWTPs = (joinResponse->ACInfoPtr).maxWTPs;
-	gACInfoPtr->security = (joinResponse->ACInfoPtr).security;
-	gACInfoPtr->RMACField = (joinResponse->ACInfoPtr).RMACField;
-
+	cur_AP->ACInfoPtr->stations = (joinResponse->ACInfoPtr).stations;
+	cur_AP->ACInfoPtr->limit = (joinResponse->ACInfoPtr).limit;
+	cur_AP->ACInfoPtr->activeWTPs = (joinResponse->ACInfoPtr).activeWTPs;
+	cur_AP->ACInfoPtr->maxWTPs = (joinResponse->ACInfoPtr).maxWTPs;
+	cur_AP->ACInfoPtr->security = (joinResponse->ACInfoPtr).security;
+	cur_AP->ACInfoPtr->RMACField = (joinResponse->ACInfoPtr).RMACField;
+	
 	/*
 	 * Elena Agostini - 02/2014
 	 *
@@ -544,7 +567,7 @@ CWBool CWSaveJoinResponseMessage(CWProtocolJoinResponseValues *joinResponse) {
 	 * object gACInfoPtr hasn't all the information. If gACInfoPtr->name is NULL,
 	 * Configure State will get a Segmentation Fault.
 	 */
-	CW_CREATE_STRING_FROM_STRING_ERR((gACInfoPtr->name), ((joinResponse->ACInfoPtr).name), return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
+	CW_CREATE_STRING_FROM_STRING_ERR((cur_AP->ACInfoPtr->name), ((joinResponse->ACInfoPtr).name), return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
 
 	/*
 	 * Elena Agostini - 02/2014
@@ -562,26 +585,26 @@ CWBool CWSaveJoinResponseMessage(CWProtocolJoinResponseValues *joinResponse) {
 		 * 19/10/2009 - Donato Capitella
 		 */
 		int i;
-		for(i = 0; i < gACInfoPtr->vendorInfos.vendorInfosCount; i++) {
-		        CW_FREE_OBJECT(gACInfoPtr->vendorInfos.vendorInfos[i].valuePtr);
+		for(i = 0; i < cur_AP->ACInfoPtr->vendorInfos.vendorInfosCount; i++) {
+		        CW_FREE_OBJECT(cur_AP->ACInfoPtr->vendorInfos.vendorInfos[i].valuePtr);
 		}
-		CW_FREE_OBJECT(gACInfoPtr->vendorInfos.vendorInfos);
+		CW_FREE_OBJECT(cur_AP->ACInfoPtr->vendorInfos.vendorInfos);
 	}
 
-	gACInfoPtr->vendorInfos = (joinResponse->ACInfoPtr).vendorInfos;
-	
+	cur_AP->ACInfoPtr->vendorInfos = (joinResponse->ACInfoPtr).vendorInfos;
+
 	if(joinResponse->ACIPv4ListInfo.ACIPv4ListCount >0) {
 
-		gACInfoPtr->ACIPv4ListInfo.ACIPv4ListCount = joinResponse->ACIPv4ListInfo.ACIPv4ListCount; 
-		gACInfoPtr->ACIPv4ListInfo.ACIPv4List = joinResponse->ACIPv4ListInfo.ACIPv4List; 
+		cur_AP->ACInfoPtr->ACIPv4ListInfo.ACIPv4ListCount = joinResponse->ACIPv4ListInfo.ACIPv4ListCount; 
+		cur_AP->ACInfoPtr->ACIPv4ListInfo.ACIPv4List = joinResponse->ACIPv4ListInfo.ACIPv4List; 
 	}
-	
+
 	if(joinResponse->ACIPv6ListInfo.ACIPv6ListCount >0) {
 
-		gACInfoPtr->ACIPv6ListInfo.ACIPv6ListCount = joinResponse->ACIPv6ListInfo.ACIPv6ListCount; 
-		gACInfoPtr->ACIPv6ListInfo.ACIPv6List = joinResponse->ACIPv6ListInfo.ACIPv6List; 
+		cur_AP->ACInfoPtr->ACIPv6ListInfo.ACIPv6ListCount = joinResponse->ACIPv6ListInfo.ACIPv6ListCount; 
+		cur_AP->ACInfoPtr->ACIPv6ListInfo.ACIPv6List = joinResponse->ACIPv6ListInfo.ACIPv6List; 
 	}
-	
+
 	/* 
          * This field name was allocated for storing the AC name; however, it
          * doesn't seem to be used and it is certainly lost when we exit

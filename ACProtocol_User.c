@@ -249,7 +249,7 @@ CWBool CWGetWTPRadiosAdminState(CWRadiosAdminInfo *valPtr)
 	return CW_TRUE;
 }
 
-CWBool CWGetWTPRadiosOperationalState(int radioID, CWRadiosOperationalInfo *valPtr)
+CWBool CWGetWTPRadiosOperationalState(int radioID, CWRadiosOperationalInfo *valPtr, AP_TABLE * cur_AP)
 {
 	int i;
 	CWBool found = CW_FALSE;

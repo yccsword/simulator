@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
 	
 	freeWTPList(wtpList, nWTPs);
 	ACServerDisconnect(acserver);
-
+	fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 	exit(EXIT_SUCCESS);
 }
 

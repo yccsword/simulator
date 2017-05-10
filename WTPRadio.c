@@ -11,17 +11,204 @@ struct WTPBSSInfo ** WTPGlobalBSSList;
 nodeAVL * avlTree = NULL;
 CWThreadMutex mutexAvlTree;
 
+CWBool CWSimulatorCreateNewWlanInterface(int radioIndex, int wlanIndex)//WTPInterfaceInfo * interfaceInfo)
+{
+	//pid_t wtpPid = getpid();
+	
+	//Create ifname: WTPWlan+radioIndex+wlanIndex+WTPpid
+	CW_CREATE_ARRAY_CALLOC_ERR(gRadiosInfo.radiosInfo[radioIndex].gWTPPhyInfo.interfaces[wlanIndex].ifName, (WTP_NAME_WLAN_PREFIX_LEN+WTP_NAME_WLAN_SUFFIX_LEN+1), char, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
+	snprintf(gRadiosInfo.radiosInfo[radioIndex].gWTPPhyInfo.interfaces[wlanIndex].ifName, (WTP_NAME_WLAN_PREFIX_LEN+WTP_NAME_WLAN_SUFFIX_LEN+1), "%s%d%d", WTP_NAME_WLAN_PREFIX, gPhyInterfaceIndex[radioIndex], wlanIndex);
+
+	gRadiosInfo.radiosInfo[radioIndex].gWTPPhyInfo.interfaces[wlanIndex].typeInterface = CW_STA_MODE;
+	//RFC wlanIndex > 0
+	gRadiosInfo.radiosInfo[radioIndex].gWTPPhyInfo.interfaces[wlanIndex].wlanID = CWIEEEBindingGetDevFromIndexID(wlanIndex);
+	
+	return CW_TRUE;
+}
+
+CWBool CWSimulatorCreateNewBSS(int radioIndex, int wlanIndex)
+{
+	int indexSTA, BSSId = getBSSIndex(radioIndex, wlanIndex);
+	
+	if(WTPGlobalBSSList[BSSId] != NULL)
+		return CW_FALSE;
+		
+	CW_CREATE_OBJECT_ERR(WTPGlobalBSSList[BSSId], WTPBSSInfo, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
+	
+	WTPGlobalBSSList[BSSId]->phyInfo = &(gRadiosInfo.radiosInfo[radioIndex].gWTPPhyInfo);
+	WTPGlobalBSSList[BSSId]->interfaceInfo = &(gRadiosInfo.radiosInfo[radioIndex].gWTPPhyInfo.interfaces[wlanIndex]);
+	WTPGlobalBSSList[BSSId]->active = CW_FALSE;
+	WTPGlobalBSSList[BSSId]->numSTAActive = 0;
+	
+	CW_CREATE_ARRAY_CALLOC_ERR(WTPGlobalBSSList[BSSId]->staList, WTP_MAX_STA, WTPSTAInfo, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
+	for(indexSTA=0; indexSTA < WTP_MAX_STA; indexSTA++)
+	{
+		WTPGlobalBSSList[BSSId]->staList[indexSTA].state = CW_80211_STA_OFF;
+		WTPGlobalBSSList[BSSId]->staList[indexSTA].address = NULL;
+		WTPGlobalBSSList[BSSId]->staList[indexSTA].radioAdd = CW_FALSE;
+	}
+	
+	CWCreateThreadMutex(&(WTPGlobalBSSList[BSSId]->bssMutex));
+	WTPGlobalBSSList[BSSId]->destroyBSS = CW_FALSE;
+	
+	return CW_TRUE;
+}
+
+char phy1Name[8] = "phy1";
+char phy2Name[8] = "phy2";
+char Bssid[6] = {0};
+float phyMbpsSet[10] = {58.5,117,175.5,234,351,468,526.5,585,702,780};
+PhyFrequencyInfoList phyFrequencyInfoList[14] = {{2412,1,1},{2417,2,2},{2422,3,3},{2427,4,4},{2432,5,5},{2437,6,6},{2442,7,7},{2447,8,8},{2452,9,9},{2457,10,10},{2462,11,11},{2467,12,12},{2472,13,13},{2484,14,14}};
+CWBool SimulatorCmdGetPhyInfo(int indexPhy, struct WTPSinglePhyInfo * singlePhyInfo)//ycc fix
+{
+	int APIndex = 1;
+	singlePhyInfo->realRadioID = APIndex * 10 + indexPhy;//APindex * 10 +Radioindex
+	char StrMac[18] = "11:22:33:44:55:66";
+	Str2Mac(Bssid, StrMac);
+	if (indexPhy == 1)
+	{
+		singlePhyInfo->phyName = phy1Name;
+	}
+	else
+	{
+		singlePhyInfo->phyName = phy2Name;
+	}
+	singlePhyInfo->phyStandard2400MH = CW_TRUE;
+	singlePhyInfo->phyStandard5000MH = CW_TRUE;
+	singlePhyInfo->phyMbpsSet = phyMbpsSet;
+	singlePhyInfo->phyHT20 = CW_TRUE;
+	singlePhyInfo->phyHT40 = CW_TRUE;
+	singlePhyInfo->phyStandardA = CW_TRUE;
+	singlePhyInfo->phyStandardB = CW_TRUE;
+	singlePhyInfo->phyStandardG = CW_TRUE;
+	singlePhyInfo->phyStandardN = CW_TRUE;	
+	singlePhyInfo->phyFrequencyInfo.totChannels = 14;
+	singlePhyInfo->phyFrequencyInfo.frequencyList = phyFrequencyInfoList;
+	singlePhyInfo->fragmentationTreshold = 0;
+	singlePhyInfo->rtsThreshold = 0;
+	singlePhyInfo->shortRetry = '0';
+	singlePhyInfo->longRetry = '0';
+	singlePhyInfo->txMSDU = 100;
+	singlePhyInfo->rxMSDU = 200;
+	singlePhyInfo->numInterfaces = 1;
+	singlePhyInfo->interfaces[0].BSSID = Bssid;
+	singlePhyInfo->interfaces[0].MACaddr = Bssid;
+	//WTPInterfaceInfo interfaces[WTP_MAX_INTERFACES];
+	//WTPInterfaceInfo monitorInterface;
+	//Netlink: Receive frames on each interface
+	//struct nl_handle *nl_beacons;
+	//struct nl_cb *nl_cb;
+	return CW_TRUE;
+}
+
+CWBool SimulatorInitRadios(void)//ycc fix
+{
+	int err, indexPhy=0;
+	int indexWlan, indexRates;
+	for(indexPhy=0; indexPhy < gRadiosInfo.radioCount; indexPhy++)
+	{
+		CWLog("[Simulator] Retrieving info for phy interface %d name: %s ...", gPhyInterfaceIndex[indexPhy], gPhyInterfaceName[indexPhy]);
+		gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.radioID = indexPhy + 1; //gPhyInterfaceIndex[indexPhy];
+		gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.realRadioID = -1;
+		//Not best practice with define
+		//Frequencies array
+		CW_CREATE_ARRAY_CALLOC_ERR(gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.phyFrequencyInfo.frequencyList, WTP_NL80211_CHANNELS_NUM, PhyFrequencyInfoList, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
+		gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.phyFrequencyInfo.totChannels = 0;
+		//Bitrate array
+		CW_CREATE_ARRAY_CALLOC_ERR(gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.phyMbpsSet, WTP_NL80211_BITRATE_NUM, float, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
+		
+
+		//Info about all phy info
+		//if(nl80211CmdGetPhyInfo(indexPhy, &(gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo)) == CW_FALSE)
+		if(SimulatorCmdGetPhyInfo(indexPhy, &(gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo)) == CW_FALSE)
+		{
+			CWLog("[Simulator ERROR] Phy interface %d name: %s has some problems. WTP will stop.", indexPhy, gPhyInterfaceName[indexPhy]);
+			return CW_FALSE;
+		}
+		
+		if(gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.realRadioID == -1)
+		{
+			//free
+			CW_FREE_OBJECT(gRadiosInfo.radiosInfo);
+			CWLog("[Simulator ERROR] Phy interface %d name: %s has some problems. WTP will stop.", indexPhy, gPhyInterfaceName[indexPhy]);
+			return CW_FALSE;
+		}
+		
+		/*
+		 * Retrocompatibilita. Da eliminare questo radioID in tutto il codice.
+		 * il vero radioID sta nelle phyInfo
+		 */
+		gRadiosInfo.radiosInfo[indexPhy].radioID = gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.radioID; //CWIEEEBindingGetIndexFromDevID(gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.radioID);
+		/* gRadiosInfo.radiosInfo[i].numEntries = 0; */
+		gRadiosInfo.radiosInfo[indexPhy].decryptErrorMACAddressList = NULL;
+		gRadiosInfo.radiosInfo[indexPhy].reportInterval= CW_REPORT_INTERVAL_DEFAULT;
+		/* Default value for CAPWAP */
+		gRadiosInfo.radiosInfo[indexPhy].adminState= ENABLED; 
+		gRadiosInfo.radiosInfo[indexPhy].adminCause= AD_NORMAL;
+		gRadiosInfo.radiosInfo[indexPhy].operationalState= DISABLED;
+		gRadiosInfo.radiosInfo[indexPhy].operationalCause= OP_NORMAL;
+		gRadiosInfo.radiosInfo[indexPhy].TxQueueLevel= 0;
+		gRadiosInfo.radiosInfo[indexPhy].wirelessLinkFramesPerSec= 0;
+		CWWTPResetRadioStatistics(&(gRadiosInfo.radiosInfo[indexPhy].statistics));
+		
+		
+		//802.11a/b/g/n total value
+		gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.phyStandardValue=PHY_NO_STANDARD;
+		if(gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.phyStandardA == CW_TRUE)
+			gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.phyStandardValue += PHY_STANDARD_A;
+		if(gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.phyStandardB == CW_TRUE)
+			gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.phyStandardValue += PHY_STANDARD_B;
+		if(gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.phyStandardG == CW_TRUE)
+			gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.phyStandardValue += PHY_STANDARD_G;
+		if(gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.phyStandardN == CW_TRUE)
+			gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.phyStandardValue += PHY_STANDARD_N;
+	
+		gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.lenSupportedRates++;
+		CW_CREATE_ARRAY_CALLOC_ERR(gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.supportedRates, gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.lenSupportedRates, char, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
+		CWLog("Simulator STARTING lenrates: %d", gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.lenSupportedRates);
+		for(indexRates=0; indexRates < WTP_NL80211_BITRATE_NUM && indexRates < gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.lenSupportedRates; indexRates++)
+		{
+			gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.supportedRates[indexRates] = (char) (gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.phyMbpsSet[indexRates] / 0.5);// mapSupportedRatesValues(gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.phyMbpsSet[indexRates], CW_80211_SUPP_RATES_CONVERT_VALUE_TO_FRAME);
+			//CWLog("supportedRates: %d", gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.supportedRates[indexRates]);
+			//CWLog("phyMbpsSet: %f", gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.phyMbpsSet[indexRates]);
+		}
+			
+		if(!CWWTPInitBinding(indexPhy)) {return CW_FALSE;}
+
+		gRadiosInfo.radiosInfo[indexPhy].gWTPPhyInfo.numInterfaces=0;
+		for(indexWlan=0; indexWlan < WTP_MAX_INTERFACES; indexWlan++)
+		{
+			//if(!CWWTPCreateNewWlanInterface(indexPhy,  indexWlan))
+			if(!CWSimulatorCreateNewWlanInterface(indexPhy,  indexWlan))
+			{
+				CWLog("[Simulator ERROR] creating new interface. RadioID: %d, WLAN ID: %d", gPhyInterfaceIndex[indexPhy], indexWlan);
+				return CW_FALSE;
+			}	
+			
+			//if(!CWWTPCreateNewBSS(indexPhy, indexWlan))
+			if(!CWSimulatorCreateNewBSS(indexPhy, indexWlan))
+			{
+				CWLog("[Simulator ERROR] creating new bss. radioIndex: %d, wlanIndex: %d", gPhyInterfaceIndex[indexPhy], indexWlan);
+				return CW_FALSE;
+			}			
+		}
+	}
+	return CW_TRUE;
+}
+
 CWBool CWWTPGetRadioGlobalInfo(void) {
 	
 	int err, indexPhy=0;
 	int indexWlan, indexRates;
 	
-	gRadiosInfo.radioCount = gPhyInterfaceCount;
+	gRadiosInfo.radioCount = gPhyInterfaceCount;//ycc fix 
 	CW_CREATE_ARRAY_CALLOC_ERR(gRadiosInfo.radiosInfo, gRadiosInfo.radioCount, CWWTPRadioInfoValues, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
 	
 	//Inizializza la variabile globale che conterrà tutte le bss presenti da questo WTP
 	CW_CREATE_ARRAY_CALLOC_ERR(WTPGlobalBSSList, (WTP_MAX_INTERFACES*gRadiosInfo.radioCount), WTPBSSInfo *, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
 	CWCreateThreadMutex(&(mutexAvlTree));
+
+	return SimulatorInitRadios();//ycc fix
 	
 	err = nl80211_init_socket(&(globalNLSock));
 	if(err != 0)
@@ -304,6 +491,7 @@ CWBool CWWTPSetAPInterface(int radioIndex, int wlanIndex, WTPInterfaceInfo * int
 
 	if(!CWErr(CWCreateThread(&(WTPGlobalBSSList[BSSId]->threadBSS), CWWTPBSSManagement, WTPGlobalBSSList[BSSId]))) {
 		CWLog("Error starting Thread that receive binding frame");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 	

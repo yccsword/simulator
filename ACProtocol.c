@@ -272,7 +272,7 @@ CWBool CWAssembleMsgElemACIPv6List (CWProtocolMessage *msgPtr)
 	return CWAssembleMsgElem(msgPtr, CW_MSG_ELEMENT_AC_IPV6_LIST_CW_TYPE);
 }
 
-CWBool CWAssembleMsgElemACName(CWProtocolMessage *msgPtr) {
+CWBool CWAssembleMsgElemACName(CWProtocolMessage *msgPtr, AP_TABLE * cur_AP) {
 	char *name;
 	
 	if(msgPtr == NULL) return CWErrorRaise(CW_ERROR_WRONG_ARG, NULL);
@@ -600,7 +600,7 @@ CWBool CWAssembleMsgElemWTPFallback (CWProtocolMessage *msgPtr)
 	return CWAssembleMsgElem(msgPtr, CW_MSG_ELEMENT_WTP_FALLBACK_CW_TYPE);
 }
 
-CWBool CWAssembleMsgElemRadioOperationalState(int radioID, CWProtocolMessage *msgPtr) 
+CWBool CWAssembleMsgElemRadioOperationalState(int radioID, CWProtocolMessage *msgPtr, AP_TABLE * cur_AP) 
 {
 	const int radio_Operational_State_Length=3;
 	CWRadiosOperationalInfo infos;
@@ -611,7 +611,7 @@ CWBool CWAssembleMsgElemRadioOperationalState(int radioID, CWProtocolMessage *ms
 	
 	if(msgPtr == NULL) return CWErrorRaise(CW_ERROR_WRONG_ARG, NULL);
 	
-	if(!(CWGetWTPRadiosOperationalState(radioID, &infos))) {
+	if(!(CWGetWTPRadiosOperationalState(radioID, &infos, NULL))) {
 		return CW_FALSE;
 	}
 	

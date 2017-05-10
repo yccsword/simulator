@@ -50,11 +50,11 @@
 #include "../dmalloc-5.5.0/dmalloc.h"
 #endif
 
-CWBool CWWTPManageGenericRunMessage(CWProtocolMessage *msgPtr);
+CWBool CWWTPManageGenericRunMessage(CWProtocolMessage *msgPtr, AP_TABLE * cur_AP);
 
 CWBool CWWTPCheckForBindingFrame();
 
-CWBool CWWTPCheckForWTPEventRequest(int eventType, CWMsgElemDataDeleteStation * infoDeleteStation);
+CWBool CWWTPCheckForWTPEventRequest(int eventType, CWMsgElemDataDeleteStation * infoDeleteStation, AP_TABLE * cur_AP);
 CWBool CWParseWTPEventResponseMessage(char *msg,
 				      int len,
 				      int seqNum,
@@ -610,7 +610,7 @@ CLEAR_DATA_RUN_STATE:
 extern int gRawSock;
 int wtpInRunState=0;
 
-CWStateTransition CWWTPEnterRun() {
+CWStateTransition CWWTPEnterRun(AP_TABLE * cur_AP) {
 
 	int k, msg_len;
 	int gWTPThreadDataPacketStateLocal=0;
@@ -635,7 +635,7 @@ CWStateTransition CWWTPEnterRun() {
 	for (k = 0; k < MAX_PENDING_REQUEST_MSGS; k++)
 		CWResetPendingMsgBox(gPendingRequestMsgs + k);
 
-	if (!CWErr(CWStartEchoRequestTimer())) {
+	if (!CWErr(CWStartEchoRequestTimer(cur_AP))) {
 		goto CLEAR_RUN_STATE; //return CW_ENTER_RESET;
 	}
 	
@@ -721,7 +721,7 @@ CWStateTransition CWWTPEnterRun() {
 				CWLog("Failure Receiving Response");
 				break;
 			}
-			if (!CWErr(CWWTPManageGenericRunMessage(&msg))) {
+			if (!CWErr(CWWTPManageGenericRunMessage(&msg, cur_AP))) {
 
 				if(CWErrorGetLastErrorCode() == CW_ERROR_INVALID_FORMAT) {
 
@@ -780,7 +780,7 @@ CWStateTransition CWWTPEnterRun() {
 	return CW_ENTER_RESET;
 }
 
-CWBool CWWTPManageGenericRunMessage(CWProtocolMessage *msgPtr) {
+CWBool CWWTPManageGenericRunMessage(CWProtocolMessage *msgPtr, AP_TABLE * cur_AP) {
 
 	CWControlHeaderValues controlVal;
 	
@@ -819,7 +819,7 @@ CWBool CWWTPManageGenericRunMessage(CWProtocolMessage *msgPtr) {
 				/*Update 2009:
 					check to see if a time-out on session occur...
 					In case it happens it should go back to CW_ENTER_RESET*/
-				if (!CWResetEchoRequestRetransmit()) {
+				if (!CWResetEchoRequestRetransmit(cur_AP)) {
 					CWFreeMessageFragments(messages, fragmentsNum);
 					CW_FREE_OBJECT(messages);
 					return CW_FALSE;
@@ -880,7 +880,7 @@ CWBool CWWTPManageGenericRunMessage(CWProtocolMessage *msgPtr) {
 				/*Update 2009:
 					check to see if a time-out on session occur...
 					In case it happens it should go back to CW_ENTER_RESET*/
-				if (!CWResetEchoRequestRetransmit()) {
+				if (!CWResetEchoRequestRetransmit(cur_AP)) {
 					CWFreeMessageFragments(messages, fragmentsNum);
 					CW_FREE_OBJECT(messages);
 					return CW_FALSE;
@@ -910,7 +910,7 @@ CWBool CWWTPManageGenericRunMessage(CWProtocolMessage *msgPtr) {
 				/*Update 2009:
 					check to see if a time-out on session occur...
 					In case it happens it should go back to CW_ENTER_RESET*/
-				if (!CWResetEchoRequestRetransmit()) {
+				if (!CWResetEchoRequestRetransmit(cur_AP)) {
 					CWFreeMessageFragments(messages, fragmentsNum);
 					CW_FREE_OBJECT(messages);
 					return CW_FALSE;
@@ -953,7 +953,7 @@ CWBool CWWTPManageGenericRunMessage(CWProtocolMessage *msgPtr) {
 				int radioIDindex, wlanIDindex;
 				char * bssidAssigned=NULL;
 				
-				if (!CWResetEchoRequestRetransmit()) {
+				if (!CWResetEchoRequestRetransmit(cur_AP)) {
 					CWFreeMessageFragments(messages, fragmentsNum);
 					CW_FREE_OBJECT(messages);
 					return CW_FALSE;
@@ -1013,7 +1013,7 @@ CWBool CWWTPManageGenericRunMessage(CWProtocolMessage *msgPtr) {
 				/*Update 2009:
 					check to see if a time-out on session occur...
 					In case it happens it should go back to CW_ENTER_RESET*/
-				if (!CWResetEchoRequestRetransmit()) {
+				if (!CWResetEchoRequestRetransmit(cur_AP)) {
 					CWFreeMessageFragments(messages, fragmentsNum);
 					CW_FREE_OBJECT(messages);
 					return CW_FALSE;
@@ -1022,6 +1022,12 @@ CWBool CWWTPManageGenericRunMessage(CWProtocolMessage *msgPtr) {
 				break;
 			}
 
+			case CW_MSG_TYPE_VALUE_WTP_EVENT_RESPONSE:// ycc fix
+			{
+				CWLog("Simulator StaInfo WTP Event Response received");
+				break;
+			}
+			
 			default:
 				/* 
 				 * We can't recognize the received Request so
@@ -1032,7 +1038,7 @@ CWBool CWWTPManageGenericRunMessage(CWProtocolMessage *msgPtr) {
 				/*Update 2009:
 					check to see if a time-out on session occur...
 					In case it happens it should go back to CW_ENTER_RESET*/
-				if (!CWResetEchoRequestRetransmit()) {
+				if (!CWResetEchoRequestRetransmit(cur_AP)) {
 					CWFreeMessageFragments(messages, fragmentsNum);
 					CW_FREE_OBJECT(messages);
 					return CW_FALSE;
@@ -1078,6 +1084,7 @@ CWBool CWWTPManageGenericRunMessage(CWProtocolMessage *msgPtr) {
 			 * Check if we have to exit due to an update commit request.
 			 */
 			if (WTPExitOnUpdateCommit) {
+				 fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 			     exit(EXIT_SUCCESS);
 			}
 		}	
@@ -1087,7 +1094,7 @@ CWBool CWWTPManageGenericRunMessage(CWProtocolMessage *msgPtr) {
 		/*Update 2009:
 		  		check to see if a time-out on session occur...
 		 		 In case it happens it should go back to CW_ENTER_RESET*/
-		if (!CWResetEchoRequestRetransmit())
+		if (!CWResetEchoRequestRetransmit(cur_AP))
 			return CW_FALSE;
 
 		switch(controlVal.messageTypeValue) 
@@ -1199,6 +1206,119 @@ dmalloc_shutdown();
 return;
 }
 
+
+//ycc fix 
+void CWSimulatorSendSTAWIFIInfo(AP_TABLE * cur_AP)
+{
+	CWLog("Simulator STA Info & Wifi Info Send to AC");
+	CWLog("\n");
+	CWLog("#________ WTP Event Request Message [%d] (Run) ________#", gWTPEchoRetransmissionCount);
+	
+	/* Send WTP Event Request */
+	CWList msgElemList = NULL;
+	CWProtocolMessage *messages = NULL;
+	int fragmentsNum = 0;
+	int seqNum;
+		
+	seqNum = CWGetSeqNum();
+	
+	CW_CREATE_OBJECT_ERR(msgElemList, CWListElement, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
+	CW_CREATE_OBJECT_ERR(msgElemList->data, CWMsgElemData, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););	
+	msgElemList->next= NULL;
+	//Change type and value to change the msg elem to send
+	((CWMsgElemData*)(msgElemList->data))->type = CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_BW_CW_TYPE;//CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_BW_CW_TYPE;
+	((CWMsgElemData*)(msgElemList->data))->value = 0;
+
+	if(!CWAssembleWTPEventRequest(&messages, &fragmentsNum, gWTPPathMTU, seqNum, msgElemList, NULL, cur_AP)){
+		int i;
+		if(messages)
+			for(i = 0; i < fragmentsNum; i++) {
+				CW_FREE_PROTOCOL_MESSAGE(messages[i]);
+			}	
+		CW_FREE_OBJECT(messages);
+		return CW_FALSE;
+	}
+	
+	int i;
+	for(i = 0; i < fragmentsNum; i++) {
+#ifdef CW_NO_DTLS
+		if(!CWNetworkSendUnsafeConnected(cur_AP->WTPSocket, messages[i].msg, messages[i].offset)) {
+#else
+		if(!CWSecuritySend(gWTPSession, messages[i].msg, messages[i].offset)){
+#endif
+			CWLog("Failure sending Request");
+			int k;
+			for(k = 0; k < fragmentsNum; k++) {
+				CW_FREE_PROTOCOL_MESSAGE(messages[k]);
+			}	
+			CW_FREE_OBJECT(messages);
+			break;
+		}
+	}
+
+	int k;
+	for(k = 0; messages && k < fragmentsNum; k++) {
+		CW_FREE_PROTOCOL_MESSAGE(messages[k]);
+	}	
+	CW_FREE_OBJECT(messages); 
+}
+
+void CWSimulatorSendEchoRequest(AP_TABLE * cur_AP) {
+
+	CWList msgElemList = NULL;
+	CWProtocolMessage *messages = NULL;
+	int fragmentsNum = 0;
+	int seqNum;
+	
+	CWLog("WTP HeartBeat Timer Expired... we send an ECHO Request");
+	CWLog("\n");
+	CWLog("#________ Echo Request Message [%d] (Run) ________#", cur_AP->WTPEchoRetransmissionCount);
+	
+	/* Send WTP Event Request */
+	seqNum = CWGetSeqNum();
+
+	if(!CWAssembleEchoRequest(&messages,
+				  &fragmentsNum,
+				  gWTPPathMTU,
+				  seqNum,
+				  msgElemList)){
+		int i;
+
+		CWDebugLog("Failure Assembling Echo Request");
+		if(messages)
+			for(i = 0; i < fragmentsNum; i++) {
+				CW_FREE_PROTOCOL_MESSAGE(messages[i]);
+			}	
+		CW_FREE_OBJECT(messages);
+		return;
+	}
+
+	int i;
+	for(i = 0; i < fragmentsNum; i++) {
+#ifdef CW_NO_DTLS
+		if(!CWNetworkSendUnsafeConnected(cur_AP->WTPSocket, messages[i].msg, messages[i].offset)) {
+#else
+		if(!CWSecuritySend(gWTPSession, messages[i].msg, messages[i].offset)){
+#endif
+			CWLog("Failure sending Request");
+			int k;
+			for(k = 0; k < fragmentsNum; k++) {
+				CW_FREE_PROTOCOL_MESSAGE(messages[k]);
+			}	
+			CW_FREE_OBJECT(messages);
+			break;
+		}
+	}
+
+	cur_AP->WTPEchoRetransmissionCount++;
+
+	int k;
+	for(k = 0; messages && k < fragmentsNum; k++) {
+		CW_FREE_PROTOCOL_MESSAGE(messages[k]);
+	}	
+	CW_FREE_OBJECT(messages); 
+}
+
 /*
  * Elena Agostini 03/2014
  * 
@@ -1211,7 +1331,7 @@ void CWWTPEchoRequestTimerExpiredHandler(void *arg) {
 	int fragmentsNum = 0;
 	int seqNum;
 	CWBool gWTPDataChannelDeadFlagLocal = CW_FALSE;
-	
+	AP_TABLE * cur_AP = (AP_TABLE *)arg;
 	//Elena Agostini - 07/2014
 	if(gEchoTimerSet == CW_FALSE)
 		return;
@@ -1284,7 +1404,8 @@ void CWWTPEchoRequestTimerExpiredHandler(void *arg) {
 	}	
 	CW_FREE_OBJECT(messages);
 	
-	if(!CWStartEchoRequestTimer()) {
+	CWSimulatorSendSTAWIFIInfo(cur_AP);//ycc fix
+	if(!CWStartEchoRequestTimer(cur_AP)) {
 		return;
 	}
 }
@@ -1477,12 +1598,12 @@ CWBool CWStopHeartbeatTimer(){
  * 
  * Add Echo Request Retransmission
  */
-CWBool CWStartEchoRequestTimer() {
+CWBool CWStartEchoRequestTimer(AP_TABLE * cur_AP) {
 	
-	gCWEchoRequestTimerID = timer_add(gEchoInterval,
+	gCWEchoRequestTimerID = timer_add(5,//gEchoInterval,
 					0,
 					&CWWTPEchoRequestTimerExpiredHandler,
-					NULL);
+					cur_AP);
 	
 	if (gCWEchoRequestTimerID == -1)	return CW_FALSE;
 
@@ -1502,13 +1623,13 @@ CWBool CWStopEchoRequestsTimer(){
 	return CW_TRUE;
 }
 
-CWBool CWResetEchoRequestRetransmit() {
+CWBool CWResetEchoRequestRetransmit(AP_TABLE * cur_AP) {
 	/*
 	 * If Echo Response received, Echo Retransmission Count = 0
 	 */
 	if(!CWStopEchoRequestsTimer()) return CW_FALSE;
 	gWTPEchoRetransmissionCount=0;
-	if(!CWStartEchoRequestTimer()) return CW_FALSE;
+	if(!CWStartEchoRequestTimer(cur_AP)) return CW_FALSE;
 
 	return CW_TRUE;
 }
@@ -1540,6 +1661,7 @@ CWBool CWStopKeepAliveTimer() {
 }
 
 CWBool CWStartDataChannelDeadTimer() {
+	return CW_TRUE;// ycc fix
 	
 	gCWDataChannelDeadTimerID = timer_add(gDataChannelDeadInterval,
 					0,
@@ -1555,6 +1677,7 @@ CWBool CWStartDataChannelDeadTimer() {
 }
 
 CWBool CWStopDataChannelDeadTimer() {
+	return CW_TRUE;// ycc fix
 	
 	timer_rem(gCWDataChannelDeadTimerID, NULL);
 //	CWDebugLog("DataChannel Dead Timer Stopped");
@@ -1563,6 +1686,7 @@ CWBool CWStopDataChannelDeadTimer() {
 }
 
 CWBool CWResetDataChannelDeadTimer() {
+	return CW_TRUE;// ycc fix
 	
 	if(gDataChannelDeadTimerSet) {
 		if (!CWStopDataChannelDeadTimer()) return CW_FALSE;
@@ -1601,7 +1725,7 @@ CWBool CWAssembleEchoRequest (CWProtocolMessage **messagesPtr,
 #else			       
 			       CW_PACKET_CRYPT
 #endif
-			       ))) 
+			       ,NULL))) 
 		return CW_FALSE;
 		
 	return CW_TRUE;
@@ -1664,7 +1788,7 @@ CWBool CWAssembleWTPDataTransferRequest(CWProtocolMessage **messagesPtr, int *fr
 #else
 				CW_PACKET_CRYPT
 #endif
-				)))
+				,NULL)))
 	 	return CW_FALSE;
 
 	CWLog("WTP Data Transfer Request Assembled");
@@ -1686,7 +1810,8 @@ CWBool CWAssembleWTPEventRequest(CWProtocolMessage **messagesPtr,
 				 int PMTU,
 				 int seqNum,
 				 CWList msgElemList,
-				 CWMsgElemDataDeleteStation * infoDeleteStation) {
+				 CWMsgElemDataDeleteStation * infoDeleteStation,
+				 AP_TABLE * cur_AP) {
 
 	CWProtocolMessage *msgElems= NULL;
 	int msgElemCount = 0;
@@ -1722,7 +1847,7 @@ CWBool CWAssembleWTPEventRequest(CWProtocolMessage **messagesPtr,
 					goto cw_assemble_error;	
 				break;
 			case CW_MSG_ELEMENT_DUPLICATE_IPV4_ADDRESS_CW_TYPE:
-				if (!(CWAssembleMsgElemDuplicateIPv4Address(&(msgElems[++k]))))
+				if (!(CWAssembleMsgElemDuplicateIPv4Address(&(msgElems[++k]), cur_AP)))
 					goto cw_assemble_error;
 				break;
 			case CW_MSG_ELEMENT_DUPLICATE_IPV6_ADDRESS_CW_TYPE:
@@ -1748,6 +1873,10 @@ CWBool CWAssembleWTPEventRequest(CWProtocolMessage **messagesPtr,
 				if (!(CWAssembleMsgElemWTPDeleteStation(&(msgElems[++k]), infoDeleteStation)))
 					goto cw_assemble_error;	
 				break;
+			case CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_BW_CW_TYPE://ycc fix
+				if (!(CWAssembleMsgElemStaWifiInfo(&(msgElems[++k]), cur_AP)))
+					goto cw_assemble_error;	
+				break;
 			default:
 				goto cw_assemble_error;
 				break;	
@@ -1769,7 +1898,7 @@ CWBool CWAssembleWTPEventRequest(CWProtocolMessage **messagesPtr,
 #else
 				CW_PACKET_CRYPT
 #endif
-				)))
+				,NULL)))
 	 	return CW_FALSE;
 
 	CWLog("WTP Event Request Assembled");
@@ -1853,7 +1982,7 @@ CWBool CWAssembleConfigurationUpdateResponse(CWProtocolMessage **messagesPtr,
 #else
 			       CW_PACKET_CRYPT
 #endif
-			       ))) 
+			       ,NULL))) 
 		return CW_FALSE;
 	
 	CWLog("Configuration Update Response Assembled");
@@ -1893,7 +2022,7 @@ CWBool CWAssembleClearConfigurationResponse(CWProtocolMessage **messagesPtr, int
 #else
 			       CW_PACKET_CRYPT
 #endif
-			       ))) 
+			       ,NULL))) 
 		return CW_FALSE;
 	
 	CWLog("Clear Configuration Response Assembled");
@@ -1934,7 +2063,7 @@ CWBool CWAssembleStationConfigurationResponse(CWProtocolMessage **messagesPtr, i
 #else
 			       CW_PACKET_CRYPT
 #endif
-			       ))) 
+			       ,NULL))) 
 		return CW_FALSE;
 	
 	CWLog("Station Configuration Response Assembled");

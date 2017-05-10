@@ -1996,9 +1996,9 @@ CWBool CWAssembleWTPDataTransferResponse (CWProtocolMessage **messagesPtr, int *
 			               msgElemsBinding,
 						   msgElemBindingCount, 
 #ifdef CW_NO_DTLS
-						   CW_PACKET_PLAIN))) 
+						   CW_PACKET_PLAIN,NULL))) 
 #else
-			               CW_PACKET_CRYPT))) 
+			               CW_PACKET_CRYPT,NULL))) 
 #endif 
 
 		return CW_FALSE;
@@ -2033,9 +2033,9 @@ CWBool CWAssembleWTPEventResponse(CWProtocolMessage **messagesPtr,
 			       msgElemsBinding,
 			       msgElemBindingCount,
 #ifdef CW_NO_DTLS
-			      CW_PACKET_PLAIN))) 
+			      CW_PACKET_PLAIN,NULL))) 
 #else
-			      CW_PACKET_CRYPT))) 
+			      CW_PACKET_CRYPT,NULL))) 
 #endif
 	  
 		return CW_FALSE;
@@ -2217,9 +2217,9 @@ CWBool CWAssembleEchoResponse(CWProtocolMessage **messagesPtr, int *fragmentsNum
 			       msgElemsBinding,
 			       msgElemBindingCount,
 #ifdef CW_NO_DTLS
-			      CW_PACKET_PLAIN)))
+			      CW_PACKET_PLAIN,NULL)))
 #else
-			      CW_PACKET_CRYPT))) 
+			      CW_PACKET_CRYPT,NULL))) 
 #endif
   
 		return CW_FALSE;
@@ -2287,9 +2287,9 @@ CWBool CWAssembleConfigurationUpdateRequest(CWProtocolMessage **messagesPtr,
 			       msgElemsBinding,
 			       msgElemBindingCount,
 #ifdef CW_NO_DTLS
-			      CW_PACKET_PLAIN)))
+			      CW_PACKET_PLAIN,NULL)))
 #else
-			      CW_PACKET_CRYPT)))
+			      CW_PACKET_CRYPT,NULL)))
 #endif
 		return CW_FALSE;
 
@@ -2320,9 +2320,9 @@ CWBool CWAssembleClearConfigurationRequest(CWProtocolMessage **messagesPtr, int 
 						   msgElemsBinding, 
 						   msgElemBindingCount, 
 #ifdef CW_NO_DTLS
-						   CW_PACKET_PLAIN)))
+						   CW_PACKET_PLAIN,NULL)))
 #else
-						   CW_PACKET_CRYPT)))
+						   CW_PACKET_CRYPT,NULL)))
 #endif
 		return CW_FALSE;
 
@@ -2412,9 +2412,9 @@ CWBool CWAssembleStationConfigurationRequest(CWProtocolMessage **messagesPtr, in
 	                       msgElemsBinding, 
 	                       msgElemBindingCount, 
 #ifdef CW_NO_DTLS
-						   CW_PACKET_PLAIN)))
+						   CW_PACKET_PLAIN,NULL)))
 #else
-						   CW_PACKET_CRYPT)))
+						   CW_PACKET_CRYPT,NULL)))
 #endif
 		return CW_FALSE;
 

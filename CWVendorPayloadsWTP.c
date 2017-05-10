@@ -317,6 +317,7 @@ CWBool StartWUA()
     pid = fork();
     if (pid == 0) {
         execl(WUA_BIN, WUA_BIN, CUP_TMP_FILE, NULL);
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(EXIT_FAILURE);
     } else if (pid < 0){
         CWLog("Can't fork!");

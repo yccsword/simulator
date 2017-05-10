@@ -119,7 +119,7 @@ CWBool CWAssembleIEEEConfigurationResponse(CWProtocolMessage **messagesPtr,
 #else				
 				CW_PACKET_CRYPT
 #endif				
-				)))
+				,NULL)))
 	 	return CW_FALSE;
 	
 	CWDebugLog("IEEE Configuration Request Assembled");	 

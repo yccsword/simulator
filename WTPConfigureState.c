@@ -47,14 +47,15 @@ CWBool CWAssembleConfigureRequest(CWProtocolMessage **messagesPtr,
 				  int *fragmentsNumPtr,
 				  int PMTU,
 				  int seqNum,
-				  CWList msgElemList);
+				  CWList msgElemList,
+				  AP_TABLE * cur_AP);
 
 CWBool CWParseConfigureResponseMessage(char *msg,
 				       int len,
 				       int seqNum,
 				       CWProtocolConfigureResponseValues *valuesPtr);
 
-CWBool CWSaveConfigureResponseMessage(CWProtocolConfigureResponseValues *configureResponse);
+CWBool CWSaveConfigureResponseMessage(CWProtocolConfigureResponseValues *configureResponse, AP_TABLE * cur_AP);
 
 /*_________________________________________________________*/
 /*  *******************___FUNCTIONS___*******************  */
@@ -62,7 +63,7 @@ CWBool CWSaveConfigureResponseMessage(CWProtocolConfigureResponseValues *configu
 /* 
  * Manage Configure State.
  */
-CWStateTransition CWWTPEnterConfigure() {
+CWStateTransition CWWTPEnterConfigure(AP_TABLE * cur_AP) {
 
 	int seqNum;
 	CWProtocolConfigureResponseValues values;
@@ -77,9 +78,10 @@ CWStateTransition CWWTPEnterConfigure() {
 					      NULL,
 					      CWAssembleConfigureRequest,
 					      (void*)CWParseConfigureResponseMessage,
-					      (void*)CWSaveConfigureResponseMessage, &values))) {
+					      (void*)CWSaveConfigureResponseMessage, &values,cur_AP))) {
 
-		CWNetworkCloseSocket(gWTPSocket);
+		Epoll_Del_Socket(cur_AP);
+		CWNetworkCloseSocket(cur_AP->WTPSocket);
 #ifndef CW_NO_DTLS
 		CWSecurityDestroySession(gWTPSession);
 		CWSecurityDestroyContext(gWTPSecurityContext);
@@ -88,7 +90,7 @@ CWStateTransition CWWTPEnterConfigure() {
 #endif
 		return CW_QUIT;
 	}
-	
+	Epoll_Mod_Socket(cur_AP);
 	return CW_ENTER_DATA_CHECK;
 }
 
@@ -99,11 +101,12 @@ CWBool CWAssembleConfigureRequest(CWProtocolMessage **messagesPtr,
 				  int *fragmentsNumPtr,
 				  int PMTU,
 				  int seqNum,
-				  CWList msgElemList) {
+				  CWList msgElemList,
+				  AP_TABLE * cur_AP) {
 
 	CWProtocolMessage 	*msgElems= NULL;
 	CWProtocolMessage 	*msgElemsBinding= NULL;
-	const int 		msgElemCount = 9;
+	const int 		msgElemCount = 5 + cur_AP->RadioCount * 5;
 	const int 		msgElemBindingCount=0;
 	int k = -1;
 	
@@ -115,11 +118,10 @@ CWBool CWAssembleConfigureRequest(CWProtocolMessage **messagesPtr,
 					 return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););	
 		
 	CWDebugLog("Assembling Configure Request...");
-	
 	/* Assemble Message Elements */
-	if ((!(CWAssembleMsgElemACName(&(msgElems[++k]))))          ||
+	if ((!(CWAssembleMsgElemACName(&(msgElems[++k]), cur_AP)))          ||
 	    (!(CWAssembleMsgElemACNameWithIndex(&(msgElems[++k])))) ||
-	    (!(CWAssembleMsgElemRadioAdminState(&(msgElems[++k])))) ||
+	    (!(CWAssembleMsgElemRadioAdminState(&(msgElems[++k]), cur_AP))) ||
 	    (!(CWAssembleMsgElemStatisticsTimer(&(msgElems[++k])))) ||
 	    (!(CWAssembleMsgElemWTPRebootStatistics(&(msgElems[++k])))) 
 	    /*
@@ -128,16 +130,18 @@ CWBool CWAssembleConfigureRequest(CWProtocolMessage **messagesPtr,
 	     */
 	)
 	{
+
 		int i;
 		for(i = 0; i <= k; i++) { CW_FREE_PROTOCOL_MESSAGE(msgElems[i]);}
 		CW_FREE_OBJECT(msgElems);
 		/* error will be handled by the caller */
 		return CW_FALSE;
 	} 
+
 	
 	//Elena Agostini - 07/2014: nl80211 support. 
-	int indexWTPRadioInfo=0, indexRates=0;;
-	for(indexWTPRadioInfo=0; indexWTPRadioInfo<gRadiosInfo.radioCount; indexWTPRadioInfo++)
+	int indexWTPRadioInfo = 0, indexRates = 0;;
+	for(indexWTPRadioInfo = 0; indexWTPRadioInfo < cur_AP->RadioCount; indexWTPRadioInfo++)
 	{
 		if(
 		!(CWAssembleMsgElemWTPRadioInformation( &(msgElems[++k]), 
@@ -161,7 +165,11 @@ CWBool CWAssembleConfigureRequest(CWProtocolMessage **messagesPtr,
 											gRadiosInfo.radiosInfo[indexWTPRadioInfo].gWTPPhyInfo.supportedRates,
 											CW_80211_MAX_SUPP_RATES
 											))
-											
+		 ||!(CWAssembleMsgElemRadioConfiguration(&(msgElems[++k]), 
+		 									indexWTPRadioInfo,
+											gRadiosInfo.radiosInfo[indexWTPRadioInfo].gWTPPhyInfo.radioID, 
+											cur_AP
+											))
 		)
 		{
 			int i;
@@ -171,7 +179,7 @@ CWBool CWAssembleConfigureRequest(CWProtocolMessage **messagesPtr,
 			return CW_FALSE;	
 		}
 	}
-	
+
 	if (!(CWAssembleMessage(messagesPtr, 
 				fragmentsNumPtr,
 				PMTU,
@@ -185,7 +193,8 @@ CWBool CWAssembleConfigureRequest(CWProtocolMessage **messagesPtr,
 				CW_PACKET_PLAIN
 #else				
 				CW_PACKET_CRYPT
-#endif				
+#endif			
+				,NULL
 				)))
 	 	return CW_FALSE;
 	
@@ -350,10 +359,10 @@ CWBool CWParseConfigureResponseMessage (char *msg,
 	return CW_TRUE;
 }
 
-CWBool CWSaveConfigureResponseMessage(CWProtocolConfigureResponseValues *configureResponse) {
+CWBool CWSaveConfigureResponseMessage(CWProtocolConfigureResponseValues *configureResponse, AP_TABLE * cur_AP) {
 
 	if(configureResponse == NULL) return CWErrorRaise(CW_ERROR_WRONG_ARG, NULL);
-	if(gACInfoPtr == NULL) return CWErrorRaise(CW_ERROR_NEED_RESOURCE, NULL);
+	if(cur_AP->ACInfoPtr == NULL) return CWErrorRaise(CW_ERROR_NEED_RESOURCE, NULL);
 	
 	CWDebugLog("Saving Configure Response...");
 /*
@@ -365,16 +374,16 @@ CWBool CWSaveConfigureResponseMessage(CWProtocolConfigureResponseValues *configu
 */
 	if((configureResponse->ACIPv4ListInfo).ACIPv4ListCount > 0) {
 
-		CW_FREE_OBJECT((gACInfoPtr->ACIPv4ListInfo).ACIPv4List);
-		(gACInfoPtr->ACIPv4ListInfo).ACIPv4ListCount = (configureResponse->ACIPv4ListInfo).ACIPv4ListCount;
-		(gACInfoPtr->ACIPv4ListInfo).ACIPv4List = (configureResponse->ACIPv4ListInfo).ACIPv4List;
+		CW_FREE_OBJECT((cur_AP->ACInfoPtr->ACIPv4ListInfo).ACIPv4List);
+		(cur_AP->ACInfoPtr->ACIPv4ListInfo).ACIPv4ListCount = (configureResponse->ACIPv4ListInfo).ACIPv4ListCount;
+		(cur_AP->ACInfoPtr->ACIPv4ListInfo).ACIPv4List = (configureResponse->ACIPv4ListInfo).ACIPv4List;
 	}
 	
 	if((configureResponse->ACIPv6ListInfo).ACIPv6ListCount > 0) {
 
-		CW_FREE_OBJECT((gACInfoPtr->ACIPv6ListInfo).ACIPv6List);
-		(gACInfoPtr->ACIPv6ListInfo).ACIPv6ListCount = (configureResponse->ACIPv6ListInfo).ACIPv6ListCount;
-		(gACInfoPtr->ACIPv6ListInfo).ACIPv6List = (configureResponse->ACIPv6ListInfo).ACIPv6List;	
+		CW_FREE_OBJECT((cur_AP->ACInfoPtr->ACIPv6ListInfo).ACIPv6List);
+		(cur_AP->ACInfoPtr->ACIPv6ListInfo).ACIPv6ListCount = (configureResponse->ACIPv6ListInfo).ACIPv6ListCount;
+		(cur_AP->ACInfoPtr->ACIPv6ListInfo).ACIPv6List = (configureResponse->ACIPv6ListInfo).ACIPv6List;	
 	}
 
 	if(configureResponse->bindingValues != NULL) {

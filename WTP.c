@@ -42,6 +42,7 @@
 #ifdef DMALLOC
 #include "../dmalloc-5.5.0/dmalloc.h"
 #endif
+#include "cfg.h"
 
 #ifdef SOFTMAC
 CW_THREAD_RETURN_TYPE CWWTPThread_read_data_from_hostapd(void *arg);
@@ -142,6 +143,12 @@ struct nl80211SocketUnit globalNLSock;
 
 int wtpInRunState;
 
+
+CWBool SimulatorReceiveMessage(CWProtocolMessage *msgPtr, char* PacketReceive, int readBytes) {
+	CWList fragments = NULL;
+	CWBool dataFlag = CW_FALSE;//数据隧道报文标识
+	return CWProtocolParseFragment(PacketReceive, readBytes, &fragments, msgPtr, &dataFlag, NULL);
+}
 /* 
  * Receive a message, that can be fragmented. This is useful not only for the Join State
  */
@@ -266,10 +273,11 @@ CWBool CWReceiveDataMessage(CWProtocolMessage *msgPtr) {
 
 CWBool CWWTPSendAcknowledgedPacket(int seqNum, 
 				   CWList msgElemlist,
-				   CWBool (assembleFunc)(CWProtocolMessage **, int *, int, int, CWList),
+				   CWBool (assembleFunc)(CWProtocolMessage **, int *, int, int, CWList, AP_TABLE * cur_AP),
 				   CWBool (parseFunc)(char*, int, int, void*), 
-				   CWBool (saveFunc)(void*),
-				   void *valuesPtr) {
+				   CWBool (saveFunc)(void*, AP_TABLE * cur_AP),
+				   void *valuesPtr,
+				   AP_TABLE * cur_AP) {
 
 	CWProtocolMessage *messages = NULL;
 	CWProtocolMessage msg;
@@ -286,20 +294,21 @@ CWBool CWWTPSendAcknowledgedPacket(int seqNum,
 			  &fragmentsNum, 
 			  gWTPPathMTU, 
 			  seqNum, 
-			  msgElemlist))) {
+			  msgElemlist,
+			  cur_AP))) {
 
 		goto cw_failure;
 	}
 	
-	gWTPRetransmissionCount= 0;
+	cur_AP->WTPRetransmissionCount= 0;
 	
-	while(gWTPRetransmissionCount < gCWMaxRetransmit) 
+	while(cur_AP->WTPRetransmissionCount < gCWMaxRetransmit) 
 	{
 //		CWLog("Transmission Num:%d", gWTPRetransmissionCount);
 		for(i = 0; i < fragmentsNum; i++) 
 		{
 #ifdef CW_NO_DTLS
-			if(!CWNetworkSendUnsafeConnected(gWTPSocket, 
+			if(!CWNetworkSendUnsafeConnected(cur_AP->WTPSocket, 
 							 messages[i].msg,
 							 messages[i].offset))
 #else
@@ -318,6 +327,7 @@ CWBool CWWTPSendAcknowledgedPacket(int seqNum,
 
 		CW_REPEAT_FOREVER 
 		{
+			#if 0
 			CWThreadMutexLock(&gInterfaceMutex);
 
 			if (CWGetCountElementFromSafeList(gPacketReceiveList) > 0)
@@ -328,18 +338,32 @@ CWBool CWWTPSendAcknowledgedPacket(int seqNum,
 			}
 
 			CWThreadMutexUnlock(&gInterfaceMutex);
+			#endif
 
-			switch(CWErrorGetLastErrorCode()) {
+			switch(SimulatorEPollRead(cur_AP->WTPSocket, Epoll_fd[cur_AP->Epoll_fd_Index], cur_AP->CWDiscoveryIntervaluSec)) {
 
 				case CW_ERROR_TIME_EXPIRED:
 				{
-					gWTPRetransmissionCount++;
+					cur_AP->WTPRetransmissionCount++;
 					goto cw_continue_external_loop;
 					break;
 				}
 
 				case CW_ERROR_SUCCESS:
 				{
+					char buf[CW_BUFFER_SIZE];
+					CWNetworkLev4Address addr;
+					int readBytes;
+					// ycc fix mutli_thread
+					if(!CWErr(CWNetworkReceiveUnsafe(cur_AP->WTPSocket,
+									 buf,
+									 CW_BUFFER_SIZE-1,
+									 0,
+									 &addr,
+									 &readBytes))) {
+						return CW_FALSE;
+					}
+					#if 0
 					/* there's something to read */
 					if(!(CWReceiveMessage(&msg))) 
 					{
@@ -347,6 +371,18 @@ CWBool CWWTPSendAcknowledgedPacket(int seqNum,
 						CWLog("Failure Receiving Response");
 						goto cw_failure;
 					}
+					#else
+					//MyPrint(DEBUG_INFO,"size of buf is:%d\n",readBytes);
+					//MyPrint(DATA_INFO,"Recv:",buf,readBytes);
+					//exit(0);
+					/* there's something to read */
+					if(!(SimulatorReceiveMessage(&msg,buf,readBytes))) 
+					{
+						CW_FREE_PROTOCOL_MESSAGE(msg);
+						CWLog("Failure Receiving Response");
+						goto cw_failure;
+					}
+					#endif
 					
 					if(!(parseFunc(msg.msg, msg.offset, seqNum, valuesPtr))) 
 					{
@@ -366,7 +402,7 @@ CWBool CWWTPSendAcknowledgedPacket(int seqNum,
 						}
 					}
 					
-					if((saveFunc(valuesPtr))) {
+					if((saveFunc(valuesPtr, cur_AP))) {
 
 						goto cw_success;
 					} 
@@ -382,7 +418,7 @@ CWBool CWWTPSendAcknowledgedPacket(int seqNum,
 
 				case CW_ERROR_INTERRUPTED: 
 				{
-					gWTPRetransmissionCount++;
+					cur_AP->WTPRetransmissionCount++;
 					goto cw_continue_external_loop;
 					break;
 				}	
@@ -579,6 +615,79 @@ cw_failure:
 	return CW_FALSE;
 }
 
+void GetConfig(char * CfgName)
+{
+	Cfg *m = CfgNew(CfgName);
+	char * tempValue = NULL;
+	if (m)
+	{
+		//DatabaseConfig
+		(tempValue = GetValByKey("DatabaseConfig","mysql_addr",m))?strcpy(mysql_addr, tempValue):fprintf(stderr,"%s[DatabaseConfig]=>mysql_addr key error%s\n", COLOR_RED, COLOR_END);tempValue = NULL;
+		(tempValue = GetValByKey("DatabaseConfig","mysql_user",m))?strcpy(mysql_user, tempValue):fprintf(stderr,"%s[DatabaseConfig]=>mysql_user key error%s\n", COLOR_RED, COLOR_END);tempValue = NULL;
+		(tempValue = GetValByKey("DatabaseConfig","mysql_pwd",m))?strcpy(mysql_pwd, tempValue):fprintf(stderr,"%s[DatabaseConfig]=>mysql_pwd key error%s\n", COLOR_RED, COLOR_END);tempValue = NULL;
+		(tempValue = GetValByKey("DatabaseConfig","mysql_database",m))?strcpy(mysql_database, tempValue):fprintf(stderr,"%s[DatabaseConfig]=>mysql_database key error%s\n", COLOR_RED, COLOR_END);tempValue = NULL;
+		//NormalConfig
+		(tempValue = GetValByKey("NormalConfig","EchoInterval",m))?EchoInterval = atoi(tempValue):fprintf(stderr,"%s[NormalConfig]=>EchoInterval key error%s\n", COLOR_RED, COLOR_END);tempValue = NULL;
+		(tempValue = GetValByKey("NormalConfig","EchoRetryCount",m))?Max_Run_WaitCount = atoi(tempValue):fprintf(stderr,"%s[NormalConfig]=>EchoRetryCount key error%s\n", COLOR_RED, COLOR_END);tempValue = NULL;
+		(tempValue = GetValByKey("NormalConfig","HasEcho",m))?HasEcho = atoi(tempValue):fprintf(stderr,"%s[NormalConfig]=>HasEcho key error%s\n", COLOR_RED, COLOR_END);tempValue = NULL;
+		(tempValue = GetValByKey("NormalConfig","HasWTPEvent",m))?HasWTPEvent = atoi(tempValue):fprintf(stderr,"%s[NormalConfig]=>HasWTPEvent key error%s\n", COLOR_RED, COLOR_END);tempValue = NULL;
+		(tempValue = GetValByKey("NormalConfig","HasCheckEchoRespone",m))?HasCheckEchoRespone = atoi(tempValue):fprintf(stderr,"%s[NormalConfig]=>HasCheckEchoRespone key error%s\n", COLOR_RED, COLOR_END);tempValue = NULL;
+		//KeyConfig
+		(tempValue = GetValByKey("KeyConfig","ApUplineInterval",m))?ApUplineInterval = atoi(tempValue):fprintf(stderr,"%s[KeyConfig]=>ApUplineInterval key error%s\n", COLOR_RED, COLOR_END);tempValue = NULL;
+		(tempValue = GetValByKey("KeyConfig","DiscoverIntervalSec",m))?DiscoverIntervalSec = atoi(tempValue):fprintf(stderr,"%s[KeyConfig]=>DiscoverIntervalSec key error%s\n", COLOR_RED, COLOR_END);tempValue = NULL;
+		(tempValue = GetValByKey("KeyConfig","DiscoverIntervalmSec",m))?DiscoverIntervalmSec = atoi(tempValue):fprintf(stderr,"%s[KeyConfig]=>DiscoverIntervalmSec key error%s\n", COLOR_RED, COLOR_END);tempValue = NULL;
+		(tempValue = GetValByKey("KeyConfig","gCWMaxDiscoveries",m))?gCWMaxDiscoveries = atoi(tempValue):fprintf(stderr,"%s[KeyConfig]=>gCWMaxDiscoveries key error%s\n", COLOR_RED, COLOR_END);tempValue = NULL;
+		(tempValue = GetValByKey("KeyConfig","WTP_RestartPort",m))?WTP_RestartPort = atoi(tempValue):fprintf(stderr,"%s[KeyConfig]=>WTP_RestartPort key error%s\n", COLOR_RED, COLOR_END);tempValue = NULL;
+		(tempValue = GetValByKey("KeyConfig","gCWSilentInterval",m))?gCWSilentInterval = atoi(tempValue):fprintf(stderr,"%s[KeyConfig]=>gCWSilentInterval key error%s\n", COLOR_RED, COLOR_END);tempValue = NULL;
+		(tempValue = GetValByKey("KeyConfig","FastSend",m))?FastSend = atoi(tempValue):fprintf(stderr,"%s[KeyConfig]=>FastSend key error%s\n", COLOR_RED, COLOR_END);tempValue = NULL;
+	}
+	CfgFree(m);
+	fprintf(stderr,"%sConnect Mysql:%s/%s@%s use %s%s\n", COLOR_GREEN, mysql_user, mysql_pwd, mysql_addr, mysql_database, COLOR_END);
+	fprintf(stderr,"%sEcho&WTP Event Interval:%d Echo&WTP RetryCount:%d Send Echo Enable:%d Report WTPEvent Enable:%d Check Echo Response Enable:%d%s\n", COLOR_GREEN, EchoInterval, Max_Run_WaitCount, HasEcho, HasWTPEvent, HasCheckEchoRespone, COLOR_END);
+	fprintf(stderr,"%sDiscovery Interval:%ds Discovery ReSend Interval:%ds%dms DiscoveryRetryTime:%d%s\n", COLOR_GREEN, ApUplineInterval, DiscoverIntervalSec, DiscoverIntervalmSec, gCWMaxDiscoveries, COLOR_END);
+	fprintf(stderr,"%sWTP Control Port restart from:%d Sulking Sleep time:%dms FastSend Enable:%d%s\n", COLOR_GREEN, WTP_RestartPort, gCWSilentInterval, FastSend, COLOR_END);
+}
+
+void SystemErrorHandler(int signum)  
+{  
+    const int len=1024;  
+    void *func[len];  
+    size_t size;  
+    int i;  
+    char **funs;  
+  
+    signal(signum,SIG_DFL);  
+    size=backtrace(func,len);  
+    funs=(char**)backtrace_symbols(func,size);  
+    fprintf(stderr,"System error, Stack trace:\n");  
+    for(i=0;i<size;++i) fprintf(stderr,"%d %s \n",i,funs[i]);  
+    free(funs);  
+	fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
+    exit(1);  
+}  
+
+void getThreadSignal()  
+{  
+	sigset_t mask;  
+	int rc;  
+	int sig; 
+	sigfillset(&mask);  
+	rc = sigwait(&mask, &sig);  
+	if (rc != 0)  
+		fprintf(stderr,"%s,%d err\n", "sigwait",rc);  
+	fprintf(stderr,"[%s] Signal handling thread got signal %d\n",__func__, sig); 
+}  
+
+
+void maskThreadSignal()  
+{  
+    sigset_t mask;  
+    int rc;  
+    sigfillset(&mask);  
+    //这组线程阻塞所有的信号  
+    rc = pthread_sigmask(SIG_BLOCK, &mask, NULL);  
+}  
+
 int main (int argc, const char * argv[]) {
 	
 
@@ -588,6 +697,10 @@ int main (int argc, const char * argv[]) {
 	
 	if (argc <= 1)
 		printf("Usage: WTP working_path\n");
+
+	//config
+	GetConfig("simulator_config");
+	//end config
 
 	if ((pid = fork()) < 0)
 		exit(1);
@@ -630,6 +743,7 @@ int main (int argc, const char * argv[]) {
 	if (!CWErr(CWCreateSafeList(&gPacketReceiveList)))
 	{
 		CWLog("Can't start WTP");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 
@@ -637,6 +751,7 @@ int main (int argc, const char * argv[]) {
 	if (!CWErr(CWCreateSafeList(&gPacketReceiveDataList)))
 	{
 		CWLog("Can't start WTP");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 	
@@ -644,6 +759,7 @@ int main (int argc, const char * argv[]) {
 	if (!CWErr(CWCreateSafeList(&gFrameList)))
 	{
 		CWLog("Can't start WTP");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 
@@ -666,9 +782,11 @@ int main (int argc, const char * argv[]) {
 	CWRandomInitLib();
 
 	CWThreadSetSignals(SIG_BLOCK, 1, SIGALRM);
+	maskThreadSignal();//ycc fix signal
 
 	if (timer_init() == 0) {
 		CWLog("Can't init timer module");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 
@@ -680,6 +798,7 @@ int main (int argc, const char * argv[]) {
 	if( !CWErr(CWSecurityInitLib())	|| !CWErr(CWWTPLoadConfiguration()) ) {
 #endif
 		CWLog("Can't start WTP");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 
@@ -687,6 +806,7 @@ int main (int argc, const char * argv[]) {
 	if(!CWWTPInitConfiguration())
 	{
 		CWLog("Error Init Configuration");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 
@@ -695,6 +815,7 @@ int main (int argc, const char * argv[]) {
 	CWThread thread_receiveFrame;
 	if(!CWErr(CWCreateThread(&thread_receiveFrame, CWWTPReceiveFrame, NULL))) {
 		CWLog("Error starting Thread that receive binding frame");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 #endif
@@ -718,7 +839,87 @@ int main (int argc, const char * argv[]) {
 		exit(1);
 	}
 	*/
+	//ycc thread 初始化线程池
+	{
+		int i = 0;
+		for (i = 0; i < THREAD_POOL_COUNT; i++)
+		{
+			threadpool[i] = pool_init (WORK_THREAD_NUM);/*线程池中最多四个活动线程*/ 
+		}
+	}
+	//ycc epoll 初始化epoll//需要close，但是目前不会主动退出
+	//ycc thread 初始化线程池mysql连接
+	{
+		int i = 0;
+		for (i = 0; i < WORK_THREAD_NUM * THREAD_POOL_COUNT; i++)
+		{
+			Epoll_fd[i] = epoll_create(1);
+			MySqlInit(&mysql_thread_pool[i]);
+			if(Epoll_fd[i] < 0)
+			{
+				fprintf(stderr,"%s %d epoll_create:%d fail!\n",__func__,__LINE__,i);
+				return 1;
+			}
+		}
+	}
+	//ycc thread 上线AP读取线程
+	CWThread thread_getAPneedUpLine;
+	if(!CWErr(CWCreateThread(&thread_getAPneedUpLine, SimulatorGetApUplineInfo, NULL))) {
+		CWLog("Error starting Thread that get AP need upline info from mysql");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
+		exit(1);
+	}
+	//ycc thread 上线AP执行线程
+	CWThread thread_APUpLine;
+	if(!CWErr(CWCreateThread(&thread_APUpLine, SimulatorApUpline, NULL))) {
+		CWLog("Error starting Thread that action AP upline");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
+		exit(1);
+	}
+	//ycc thread RUN AP读取线程
+	CWThread thread_getAPneedRUN;
+	if(!CWErr(CWCreateThread(&thread_getAPneedRUN, SimulatorGetApRunInfo, NULL))) {
+		CWLog("Error starting Thread that get AP need run info from mysql");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
+		exit(1);
+	}
+	//ycc thread RUN AP执行线程
+	CWThread thread_APRUN;
+	if(!CWErr(CWCreateThread(&thread_APRUN, SimulatorApRun, NULL))) {
+		CWLog("Error starting Thread that action AP run");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
+		exit(1);
+	}
+	//ycc thread RUN AP收包线程
+	CWThread thread_APRUN_recv;
+	if(!CWErr(CWCreateThread(&thread_APRUN_recv, SimulatorListeningEpoll, NULL))) {
+		CWLog("Error starting Thread that recv AP run packet response");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
+		exit(1);
+	}
 
+	signal(SIGPIPE,SystemErrorHandler);
+	signal(SIGFPE,SystemErrorHandler);
+	signal(SIGSEGV,SystemErrorHandler); //Invaild memory address  
+    signal(SIGABRT,SystemErrorHandler); // Abort signal  
+	//ycc keep simulator running
+	CW_REPEAT_FOREVER 
+	{
+		if (SimulatorQuit)
+		{
+			CWWTPDestroy(NULL);
+			/*销毁线程池*/  
+			int i = 0;
+			for (i = 0; i < THREAD_POOL_COUNT; i++)
+			{
+	    		pool_destroy (&threadpool[i]);  
+			}
+			return 0;
+		}
+		getThreadSignal();
+		sleep(120);
+	}
+	
 	/* if AC address is given jump Discovery and use this address for Joining */
 	if(gWTPForceACAddress != NULL)	nextState = CW_ENTER_JOIN;
 
@@ -726,29 +927,29 @@ int main (int argc, const char * argv[]) {
 	CW_REPEAT_FOREVER {
 		switch(nextState) {
 			case CW_ENTER_DISCOVERY:
-				nextState = CWWTPEnterDiscovery();
+				nextState = CWWTPEnterDiscovery(NULL);
 				break;
 			case CW_ENTER_SULKING:
-				nextState = CWWTPEnterSulking();
+				nextState = CWWTPEnterSulking(NULL);
 				break;
 			case CW_ENTER_JOIN:
-				nextState = CWWTPEnterJoin();
+				nextState = CWWTPEnterJoin(NULL);
 				break;
 			case CW_ENTER_CONFIGURE:
-				nextState = CWWTPEnterConfigure();
+				nextState = CWWTPEnterConfigure(NULL);
 				break;
 			case CW_ENTER_DATA_CHECK:
-				nextState = CWWTPEnterDataCheck();
+				nextState = CWWTPEnterDataCheck(NULL);
 				break;	
 			case CW_ENTER_RUN:
-				nextState = CWWTPEnterRun();
+				nextState = CWWTPEnterRun(NULL);
 				break;
 			case CW_ENTER_RESET:
 				CWLog("------ Enter Reset State ------");
 				nextState = CW_ENTER_DISCOVERY;
 				break;
 			case CW_QUIT:
-				CWWTPDestroy();
+				CWWTPDestroy(NULL);
 				return 0;
 		}
 	}
@@ -779,6 +980,7 @@ CWBool CWWTPLoadConfiguration() {
 	/* get saved preferences */
 	if(!CWErr(CWParseConfigFile())) {
 		CWLog("Can't Read Config File");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 	
@@ -801,7 +1003,7 @@ CWBool CWWTPLoadConfiguration() {
 	return CW_TRUE;
 }
 
-void CWWTPDestroy() {
+void CWWTPDestroy(AP_TABLE * cur_AP) {
 	int i;
 	
 	CWLog("Destroy WTP");
@@ -835,6 +1037,8 @@ void CWWTPDestroy() {
 CWBool CWWTPInitConfiguration() {
 	int i, err;
 
+	GetMaxRetryCount();//ycc fix
+
 	//Generate 128-bit Session ID,
 	initWTPSessionID(gWTPSessionID);
 	
@@ -842,7 +1046,7 @@ CWBool CWWTPInitConfiguration() {
 	
 	//Elena Agostini - 07/2014: nl80211 support
 	if(CWWTPGetRadioGlobalInfo() == CW_FALSE)
-		return CW_FALSE;
-	
+		//return CW_FALSE;//ycc fix simulator no radio
+	fprintf(stderr,"Wtp simulator No Radio\n");
 	return CW_TRUE;
 }

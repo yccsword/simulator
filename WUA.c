@@ -152,6 +152,7 @@ void WTPUpdateAgent(char *CupPath)
         exit_status = EXIT_FAILURE;
         if ( !RestoreBackupWTP(WTPDir) ) {
 	    WUALog("***CRITICAL ERROR*** -> Can't restore backup WTP!!!");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 	    exit(EXIT_FAILURE);
 	}
 	goto quit_wua;
@@ -163,6 +164,7 @@ quit_wua:
     StartWTP(WTPDir);
     WUALog("Update Session Ended %s", (exit_status == EXIT_SUCCESS) ? "Successefully" : "With Errors");
     WUALogClose();
+	fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
     exit(exit_status);
 }
 
@@ -328,6 +330,7 @@ CWBool StartWTP(char *WTPDir)
 
     if (pid == 0) {
         execl(cmd_buf, "WTP", WTPDir, NULL);
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 	exit(EXIT_FAILURE);
     } else if (pid < 0) {
         WUALog("Error while forking");
@@ -524,10 +527,12 @@ void daemonize()
     /* Fork off the parent process */
     pid = fork();
     if (pid < 0) {
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
         exit(EXIT_FAILURE);
     }
     /* If we got a good PID, then we can exit the parent process. */
     if (pid > 0) {
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
         exit(EXIT_SUCCESS);
     }
 
@@ -539,6 +544,7 @@ void daemonize()
     /* Create a new SID for the child process */
     sid = setsid();
         if (sid < 0) {
+	   fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
        exit(EXIT_FAILURE);
     }
 

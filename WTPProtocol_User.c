@@ -70,18 +70,19 @@ __inline__ int CWWTPGetEncCapabilities() {
 }
 
 
-CWBool CWWTPGetBoardData(CWWTPVendorInfos *valPtr) {
+CWBool CWWTPGetBoardData(CWWTPVendorInfos *valPtr, AP_TABLE * cur_AP) {// ycc fix mutli_thread
 	if(valPtr == NULL) return CWErrorRaise(CW_ERROR_WRONG_ARG, NULL);
 
-	valPtr->vendorInfosCount = 2; // we fill 2 information (just the required ones)
+	valPtr->vendorInfosCount = 3; // we fill 2 information (just the required ones)
 	CW_CREATE_ARRAY_ERR((valPtr->vendorInfos), valPtr->vendorInfosCount, CWWTPVendorInfoValues, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
 	
 	// my vendor identifier (IANA assigned "SMI Network Management Private Enterprise Code")
+	
 	(valPtr->vendorInfos)[0].vendorIdentifier = 23456;
 	(valPtr->vendorInfos)[0].type = CW_WTP_MODEL_NUMBER;
-	(valPtr->vendorInfos)[0].length = sizeof(long int); // just one int
+	(valPtr->vendorInfos)[0].length = strlen(cur_AP->Model);//sizeof(long int);// ycc fix mutli_thread
 	CW_CREATE_OBJECT_SIZE_ERR(( ( (valPtr->vendorInfos)[0] ).valuePtr), (valPtr->vendorInfos)[0].length, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
-	*(int *)(((valPtr->vendorInfos)[0]).valuePtr) = 123456; // MODEL NUMBER
+	CW_COPY_MEMORY(((valPtr->vendorInfos)[0]).valuePtr, cur_AP->Model, strlen(cur_AP->Model)); //123456// MODEL NUMBER// ycc fix mutli_thread
 
 	// my vendor identifier (IANA assigned "SMI Network Management Private Enterprise Code")
 	(valPtr->vendorInfos)[1].vendorIdentifier = 23456;
@@ -89,11 +90,21 @@ CWBool CWWTPGetBoardData(CWWTPVendorInfos *valPtr) {
 	(valPtr->vendorInfos)[1].length = sizeof(long int); // just one int
 	CW_CREATE_OBJECT_SIZE_ERR(( ( (valPtr->vendorInfos)[1] ).valuePtr), (valPtr->vendorInfos)[1].length, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
 	*(int *)(((valPtr->vendorInfos)[1]).valuePtr) = 123456; // SERIAL NUMBER
+
+	// my vendor identifier (IANA assigned "SMI Network Management Private Enterprise Code")
+	
+	//CWLog("mac:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x sizeof(sendbuf):%d",(unsigned char ) macbuf[0], (unsigned char ) macbuf[1], (unsigned char ) macbuf[2],
+    //       (unsigned char ) macbuf[3], (unsigned char ) macbuf[4], (unsigned char ) macbuf[5],sizeof(macbuf));
+	(valPtr->vendorInfos)[2].vendorIdentifier = 23456;
+	(valPtr->vendorInfos)[2].type = CW_BASE_MAC_ADDRESS;
+	(valPtr->vendorInfos)[2].length = sizeof(cur_AP->Mac);// ycc fix mutli_thread
+	CW_CREATE_OBJECT_SIZE_ERR(( ( (valPtr->vendorInfos)[2] ).valuePtr), (valPtr->vendorInfos)[2].length, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
+	CW_COPY_MEMORY(((valPtr->vendorInfos)[2]).valuePtr, cur_AP->Mac, sizeof(cur_AP->Mac)); // BASE MAC ADDRESS// ycc fix mutli_thread
 	
 	return CW_TRUE;
 }
 
-CWBool CWWTPGetVendorInfos(CWWTPVendorInfos *valPtr) {
+CWBool CWWTPGetVendorInfos(CWWTPVendorInfos *valPtr, AP_TABLE * cur_AP) {
 	if(valPtr == NULL) return CWErrorRaise(CW_ERROR_WRONG_ARG, NULL);
 	
 	valPtr->vendorInfosCount = 3; // we fill 3 information (just the required ones)
@@ -102,23 +113,26 @@ CWBool CWWTPGetVendorInfos(CWWTPVendorInfos *valPtr) {
 	// my vendor identifier (IANA assigned "SMI Network Management Private Enterprise Code")
 	(valPtr->vendorInfos)[0].vendorIdentifier = 23456;
 	(valPtr->vendorInfos)[0].type = CW_WTP_HARDWARE_VERSION;
-	(valPtr->vendorInfos)[0].length = sizeof(long int); // just one int
+	(valPtr->vendorInfos)[0].length = strlen(cur_AP->HwVersion);//sizeof(long int); // just one int
 	CW_CREATE_OBJECT_SIZE_ERR(( ( (valPtr->vendorInfos)[0] ).valuePtr), (valPtr->vendorInfos)[0].length, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
-	*(int *)(((valPtr->vendorInfos)[0]).valuePtr) = 123456; // HW version
+	//*(int *)(((valPtr->vendorInfos)[0]).valuePtr) = 123456; // HW version
+	CW_COPY_MEMORY(((valPtr->vendorInfos)[0]).valuePtr, cur_AP->HwVersion, strlen(cur_AP->HwVersion));// ycc fix mutli_thread
 
 	// my vendor identifier (IANA assigned "SMI Network Management Private Enterprise Code")
 	((valPtr->vendorInfos)[1]).vendorIdentifier = 23456;
 	((valPtr->vendorInfos)[1]).type = CW_WTP_SOFTWARE_VERSION;
-	((valPtr->vendorInfos)[1]).length = sizeof(long int); // just one int
+	((valPtr->vendorInfos)[1]).length = strlen(cur_AP->SwVersion);//sizeof(long int); // just one int
 	CW_CREATE_OBJECT_SIZE_ERR(( ( (valPtr->vendorInfos)[1] ).valuePtr), (valPtr->vendorInfos)[1].length, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
-	*(int *)(((valPtr->vendorInfos)[1]).valuePtr) = 12347; // SW version
+	//*(int *)(((valPtr->vendorInfos)[1]).valuePtr) = 12347; // SW version
+	CW_COPY_MEMORY(((valPtr->vendorInfos)[1]).valuePtr, cur_AP->SwVersion, strlen(cur_AP->SwVersion));// ycc fix mutli_thread
 	
 	// my vendor identifier (IANA assigned "SMI Network Management Private Enterprise Code")
 	(valPtr->vendorInfos)[2].vendorIdentifier = 23456;
 	(valPtr->vendorInfos)[2].type = CW_BOOT_VERSION;
-	(valPtr->vendorInfos)[2].length = sizeof(long int); // just one int
+	(valPtr->vendorInfos)[2].length = strlen(cur_AP->BootVersion);//sizeof(long int); // just one int
 	CW_CREATE_OBJECT_SIZE_ERR(( ( (valPtr->vendorInfos)[2] ).valuePtr), (valPtr->vendorInfos)[2].length, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
-	*(int *)(((valPtr->vendorInfos)[2]).valuePtr) = 1234568; //1234568; // Boot version
+	//*(int *)(((valPtr->vendorInfos)[2]).valuePtr) = 1234568; //1234568; // Boot version
+	CW_COPY_MEMORY(((valPtr->vendorInfos)[2]).valuePtr, cur_AP->BootVersion, strlen(cur_AP->BootVersion));// ycc fix mutli_thread
 	
 	return CW_TRUE;
 }
@@ -164,14 +178,14 @@ __inline__ int CWWTPGetSessionID() {
 	return CWRandomIntInRange(0, INT_MAX);
 }
 
-__inline__ int CWWTPGetIPv4Address() {
+__inline__ int CWWTPGetIPv4Address(AP_TABLE * cur_AP) {
 	struct sockaddr_in myAddr;
 	unsigned int len = sizeof(myAddr);
 	
 	//CWDebugLog("WTPGetIPv4Address");
 
 	/* assume the socket is connected */
-	getsockname(gWTPSocket, (struct sockaddr*) &myAddr, &len);
+	getsockname(cur_AP->WTPSocket, (struct sockaddr*) &myAddr, &len);
 	
 	return ntohl(myAddr.sin_addr.s_addr); 	// TO-DO: this is garbage if we are an IPv6 client
 }
@@ -214,17 +228,17 @@ __inline__ char *CWWTPGetName() {
 */
 
 /* L'AC ha la funzione ridefinita */
-CWBool CWGetWTPRadiosAdminState(CWRadiosAdminInfo *valPtr) 
+CWBool CWGetWTPRadiosAdminState(CWRadiosAdminInfo *valPtr, AP_TABLE * cur_AP) 
 {
 	int i;
 
 	if(valPtr == NULL) return CWErrorRaise(CW_ERROR_WRONG_ARG, NULL);
 	
-	valPtr->radiosCount = gRadiosInfo.radioCount;
+	valPtr->radiosCount = cur_AP->RadioCount;
 	
 	CW_CREATE_ARRAY_ERR(valPtr->radios, valPtr->radiosCount, CWRadioAdminInfoValues, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
 	
-	for (i=0; i<gRadiosInfo.radioCount; i++)
+	for (i = 0; i < cur_AP->RadioCount; i++)
 	{
 		(valPtr->radios)[i].ID = gRadiosInfo.radiosInfo[i].radioID; // first radio
 		(valPtr->radios)[i].state = gRadiosInfo.radiosInfo[i].adminState;
@@ -234,7 +248,7 @@ CWBool CWGetWTPRadiosAdminState(CWRadiosAdminInfo *valPtr)
 	return CW_TRUE;
 }
 
-CWBool CWGetWTPRadiosOperationalState(int radioID, CWRadiosOperationalInfo *valPtr)
+CWBool CWGetWTPRadiosOperationalState(int radioID, CWRadiosOperationalInfo *valPtr, AP_TABLE * cur_AP)
 {
 	int i;
 	CWBool found = CW_FALSE;
@@ -243,11 +257,11 @@ CWBool CWGetWTPRadiosOperationalState(int radioID, CWRadiosOperationalInfo *valP
 	
 	if(radioID<0) {
 		
-		valPtr->radiosCount = gRadiosInfo.radioCount;
+		valPtr->radiosCount = cur_AP->RadioCount;
 		
 		CW_CREATE_ARRAY_ERR(valPtr->radios, valPtr->radiosCount, CWRadioOperationalInfoValues, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
 	
-		for (i=0; i<gRadiosInfo.radioCount; i++)
+		for (i = 0; i < cur_AP->RadioCount; i++)
 		{	
 			(valPtr->radios)[i].ID = gRadiosInfo.radiosInfo[i].radioID;
 			(valPtr->radios)[i].state = gRadiosInfo.radiosInfo[i].operationalState;
@@ -256,7 +270,7 @@ CWBool CWGetWTPRadiosOperationalState(int radioID, CWRadiosOperationalInfo *valP
 		return CW_TRUE;	
 	}	
 	else {
-		for (i=0; i<gRadiosInfo.radioCount; i++)
+		for (i = 0; i < cur_AP->RadioCount; i++)
 		{
 			if(gRadiosInfo.radiosInfo[i].radioID == radioID)
 			{
@@ -348,9 +362,9 @@ int CWWTPGetACIndex()
 	return 1; //valore predefinito
 }
 
-char* CWWTPGetACName()
+char* CWWTPGetACName(AP_TABLE * cur_AP)
 {
-	return gACInfoPtr->name;
+	return cur_AP->ACInfoPtr->name;
 }
 
 int CWWTPGetStatisticsTimer ()

@@ -156,7 +156,7 @@ CWBool CWAssembleChangeStateEventResponse(CWProtocolMessage **messagesPtr, int *
 CWBool CWAssembleMsgElemACDescriptor(CWProtocolMessage *msgPtr);			// 1
 CWBool CWAssembleMsgElemACIPv4List(CWProtocolMessage *msgPtr);				// 2
 CWBool CWAssembleMsgElemACIPv6List(CWProtocolMessage *msgPtr);				// 3
-CWBool CWAssembleMsgElemACName(CWProtocolMessage *msgPtr);				// 4
+CWBool CWAssembleMsgElemACName(CWProtocolMessage *msgPtr, AP_TABLE * cur_AP);				// 4
 CWBool CWAssembleMsgElemAddStation(int radioID,CWProtocolMessage *msgPtr,unsigned char* StationMacAddr);		// 8
 //Elena Agostini
 CWBool CWAssembleMsgElem80211Station(int radioID, int wlanID, CWProtocolMessage *msgPtr, CWFrameAssociationResponse associationResponse);
@@ -229,7 +229,7 @@ int CWACGetInterfaceWTPCountAtIndex(int i);
 CWBool CWACGetDiscoveryTimer(int *timer);
 CWBool CWACGetEchoRequestTimer(int *timer);
 CWBool CWACGetIdleTimeout(int *timer);
-CWBool CWGetWTPRadiosOperationalState(int radioID, CWRadiosOperationalInfo *valPtr);
+CWBool CWGetWTPRadiosOperationalState(int radioID, CWRadiosOperationalInfo *valPtr, AP_TABLE * cur_AP);
 
 //---------------------------------------------------------/
 CWBool CWACSupportIPv6();

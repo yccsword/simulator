@@ -161,6 +161,7 @@ static void timer_start(struct timeval *abs_to) {
 	if (rv == -1) {
 		/* This should never happen but I dont trust myself */
 		perror("setitimer");
+		fprintf(stderr,"%s %d\n",__func__,__LINE__);//ycc care
 		exit(1);
 	}
 

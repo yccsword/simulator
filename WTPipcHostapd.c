@@ -40,7 +40,7 @@
 #include "../dmalloc-5.5.0/dmalloc.h"
 #endif
 
-#define EXIT_FRAME_THREAD(sock)	CWLog("ERROR Handling Frames: application will be closed!"); close(sock); exit(1);
+#define EXIT_FRAME_THREAD(sock)	CWLog("ERROR Handling Frames: application will be closed!"); close(sock); exit(8);
 
 
 //#define LOCALUDP

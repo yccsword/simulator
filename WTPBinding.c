@@ -105,7 +105,7 @@ CWBool CWWTPInitBinding(int radioIndex)
 	/*** Inizializzazione struttura iwreq ***/
 	memset(&wrq, 0, sizeof(wrq));
 	strncpy(wrq.ifr_name, gInterfaceName, IFNAMSIZ);
-
+CWLog("gInterfaceName: %s", gInterfaceName);
 	CW_CREATE_OBJECT_ERR(aux, bindingValues, return CWErrorRaise(CW_ERROR_OUT_OF_MEMORY, NULL););
 
 	gRadiosInfo.radiosInfo[radioIndex].bindingValuesPtr=(void*) aux;
